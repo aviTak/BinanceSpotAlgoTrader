@@ -1,0 +1,29 @@
+{
+  "name": "trading",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "pm2 start ecosystem.config.js --env stage",
+    "start:prod": "pm2 start ecosystem.config.js --env prod",
+    "stop": "pm2 stop all",
+    "restart": "pm2 restart all",
+    "delete": "pm2 delete all",
+    "logs": "pm2 logs",
+    "logs:error": "pm2 logs --err",
+    "status": "pm2 status",
+    "clean": "rm -rf csv-data log-files"
+  },
+  "author": "Avi Takiyar",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.2",
+    "bottleneck": "^2.19.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.5",
+    "pm2": "^5.4.2",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.1",
+    "winston-daily-rotate-file": "^5.0.0"
+  }
+}
