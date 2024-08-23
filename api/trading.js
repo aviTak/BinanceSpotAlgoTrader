@@ -1,23 +1,15 @@
+const config = require("../config/config");
 const { SYMBOLS, SIDE, TYPE, ERROR_CODE } = require("../config/constants");
 const { getCapital, getQtyPrecision } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const makeApiCall = require("./api");
-const { generalRequestLimiter, rawRequestLimiter, dailyOrderLimiter, orderPlacementLimiter } = require("../config/rateLimitConfig");
-const config = require("../config/config");
 
 async function fetchMarketPrices() {
-    const symbolsParam = JSON.stringify(Object.keys(SYMBOLS));
+    const symbolsParam = JSON.stringify(SYMBOLS);
 
     try {
         logger.info(`Request made to fetch new market prices of assets - ${JSON.stringify(SYMBOLS, null, 2)}}`);
-
-        /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[PRICES] - New order placed API hit (POST)`);
-        const prices = await generalRequestLimiter.schedule({ weight: 2 }, () =>
-            rawRequestLimiter.schedule({ weight: 2 }, () =>
-                makeApiCall(config.MARKET_PRICES_PATH, { symbols: symbolsParam })
-            )
-        );
+        const prices = await makeApiCall(config.marketPricesPath, { symbols: symbolsParam });
 
         logger.info(`New market prices fetched: ${JSON.stringify(prices, null, 2)}`);
         return prices;
@@ -28,18 +20,11 @@ async function fetchMarketPrices() {
 }
 
 async function fetchBidAskPrices() {
-    const symbolsParam = JSON.stringify(Object.keys(SYMBOLS));
+    const symbolsParam = JSON.stringify(SYMBOLS);
 
     try {
         logger.info(`Request made to fetch new bid and ask prices of assets - ${JSON.stringify(SYMBOLS, null, 2)}}`);
-
-        /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[PRICES] - New order placed API hit (POST)`);
-        const prices = await generalRequestLimiter.schedule({ weight: 2 }, () =>
-            rawRequestLimiter.schedule({ weight: 2 }, () =>
-                makeApiCall(config.BID_ASK_PRICES_PATH, { symbols: symbolsParam })
-            )
-        );
+        const prices = await makeApiCall(config.bidAskPricesPath, { symbols: symbolsParam });
 
         logger.info(`New bid and ask prices fetched: ${JSON.stringify(prices, null, 2)}`);
         return prices;
@@ -53,36 +38,9 @@ async function checkOrderStatus(params) {
     try {
         logger.info(`Request made to check status for symbol - ${params.symbol}, orderId - ${params.orderId}`);
 
-        /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[STATUS] - New order placed API hit (POST)`);
-        const response = await generalRequestLimiter.schedule({ weight: 2 }, () =>
-            rawRequestLimiter.schedule({ weight: 2 }, () =>
-                makeApiCall(config.ORDER_PATH, params, "GET", true)
-            )
-        );
-
-        return response;
+        return makeApiCall(config.orderPath, params, "GET", true);
     } catch (error) {
         logger.error(`Error checking status for symbol - ${params.symbol}, orderId - ${params.orderId} with error: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`);
-        throw error;
-    }
-}
-
-async function cancelOrder(params) {
-    try {
-        logger.info(`Request made to cancel for symbol - ${params.symbol}, orderId - ${params.orderId}`);
-
-        /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[CANCEL] - New order placed API hit (POST)`);
-        const response = await generalRequestLimiter.schedule({ weight: 1 }, () =>
-            rawRequestLimiter.schedule({ weight: 1 }, () =>
-                makeApiCall(config.ORDER_PATH, params, "DELETE", true)
-            )
-        );
-
-        return response;
-    } catch (error) {
-        logger.error(`Error canceling order for symbol - ${params.symbol}, orderId - ${params.orderId} with error: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`);
         throw error;
     }
 }
@@ -90,6 +48,8 @@ async function cancelOrder(params) {
 async function executeOrder({
     symbol,
     price,
+    // bidPrice,
+    // askPrice,
     side,
     type,
     timeInForce,
@@ -103,6 +63,9 @@ async function executeOrder({
         side: side,
         type: type
     };
+
+    // Remove this line; only used for testing
+    // price = askPrice;
 
     if (side === SIDE.BUY) {
         // Common for both BUY MARKET and BUY LIMIT
@@ -130,28 +93,12 @@ async function executeOrder({
     if (!parseFloat(quantity) || !(parseFloat(quantity) * parseFloat(price) >= minNotional) || parseFloat(quantity) < minQty) {
         const error = new Error("Quantity too low");
             error.internalCode = ERROR_CODE.INSUFFICIENT_QUANTITY;
-
-        logger.info(`Min quantity/ Notional issue for price: ${price} and quantity: ${quantity}`);
-        throw error;
+            throw error;
     }
 
     try {
         logger.info(`Params for order to be executed: ${JSON.stringify(params, null, 2)}`);
-
-        /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[ORDER] - New order placed API hit (POST)`);
-
-        const response = await generalRequestLimiter.schedule({ weight: 1 }, () =>
-            rawRequestLimiter.schedule({ weight: 1 }, () =>
-                dailyOrderLimiter.schedule(() =>
-                    orderPlacementLimiter.schedule(() =>
-                        makeApiCall(config.ORDER_PATH, params, "POST", true)
-                    )
-                )
-            )
-        );
-
-        return response;
+        return makeApiCall(config.orderPath, params, "POST", true);
     } catch (error) {
         logger.error(`Error while executing order of params - ${JSON.stringify(params, null, 2)} with error - ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`);
         throw error;
@@ -162,6 +109,5 @@ module.exports = {
     fetchMarketPrices,
     fetchBidAskPrices,
     checkOrderStatus,
-    executeOrder,
-    cancelOrder
+    executeOrder
 }

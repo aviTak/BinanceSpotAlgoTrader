@@ -1,180 +1,111 @@
-const { executeOrder, checkOrderStatus, cancelOrder, fetchBidAskPrices } = require("../api/trading");
-const { ORDER_STATUS, TYPE, TIME_IN_FORCE, SIDE } = require("../config/constants");
-const { getOrderInfo, updateTransactionDetail, handleSubProcessError, updateAllPrices } = require("../utils/helpers");
+const { executeOrder } = require("../api/trading");
+const { TRANSACTION_ATTEMPTS, TYPE, TIME_IN_FORCE, SELECTED_PRICE, SIDE, ORDER_STATUS } = require("../config/constants");
+const { getOrderInfo, updateTransactionDetail, changePrice, handleSubProcessError, updatePriceAtIndex } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const transaction4 = require("./transaction4");
 
 const FUNCTION_INDEX = 2,
-    ITERATION_TIME = 1000, // Time in ms
-    DELAY_STATUS_CHECK = 0;
+    SUB_NODES = [
+        {
+            name: "1",
+            type: TYPE.LIMIT,
+            timeInForce: TIME_IN_FORCE.IOC,
+            selectedPrice: SELECTED_PRICE.SAME
+        },
+        {
+            name: "2",
+            type: TYPE.LIMIT,
+            timeInForce: TIME_IN_FORCE.IOC,
+            selectedPrice: SELECTED_PRICE.CHANGED
+        },
+        {
+            name: "3",
+            type: TYPE.MARKET
+        }
+    ];
 
 async function transaction3(
     transactionDetail,
     quantity,
-    isFirstAttempt = true
+    attempts = TRANSACTION_ATTEMPTS.TRANSACTION_3,
+    subNodeIndex = 0
 ) {
-    let updatedTransactionDetail = transactionDetail,
-        orderInfo;
+    if (attempts <= 0) {
+        if (subNodeIndex >= SUB_NODES.length - 1) {
+            logger.info(`${transactionDetail.processId} - Order expired in all the attempts at function ${FUNCTION_INDEX + 1}: Nothing got executed`);
+            return;
+        }
 
-    if (isFirstAttempt) {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} first attempt`); // Bid/ask price
-        orderInfo = getOrderInfo(transactionDetail, FUNCTION_INDEX);
-    } else {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} consecutive attempt`);
-        const bidAskPrices = await fetchBidAskPrices();
+        subNodeIndex += 1;
+        attempts = TRANSACTION_ATTEMPTS.TRANSACTION_3;
 
-        updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices });
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
+        logger.info(`${transactionDetail.processId} - Sub-node at function ${FUNCTION_INDEX + 1} changed to ${subNodeIndex + 1}: ${JSON.stringify(SUB_NODES, null, 2)}`);
+    }
+
+    let orderInfo = getOrderInfo(transactionDetail, FUNCTION_INDEX);
+    const updatedTransactionDetail = JSON.parse(JSON.stringify(transactionDetail));
+
+    if (SUB_NODES[subNodeIndex].selectedPrice === SELECTED_PRICE.CHANGED) {
+        let newPrice;
+        const [increasedPrice, decreasedPrice] = changePrice(orderInfo.price, orderInfo.pricePrecision);
+
+        if (orderInfo.side === SIDE.BUY) { // Increase price
+            newPrice = increasedPrice;
+        } else { // Decrease price
+            newPrice = decreasedPrice;
+        }
+
+        updatedTransactionDetail.transactions.price = newPrice;
         orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX);
     }
 
     try {
-        logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
-
         const executionResponse = await executeOrder({
                 ...orderInfo,
-                type: TYPE.LIMIT,
-                timeInForce: TIME_IN_FORCE.GTC,
+                type: SUB_NODES[subNodeIndex].type,
+                timeInForce: SUB_NODES[subNodeIndex].timeInForce,
                 quantity: quantity
             }),
             updatedValues = {
                 orderId: executionResponse.orderId,
                 cummulativeQuoteQty: executionResponse.cummulativeQuoteQty,
                 executedQty: executionResponse.executedQty,
-                setPrice: executionResponse.price,
+                executionPrice: executionResponse.executionPrice,
                 fills: executionResponse.fills
             },
             newTransactionDetail = updateTransactionDetail(updatedTransactionDetail, FUNCTION_INDEX, updatedValues);
 
-        logger.info(`${transactionDetail.processId} - Execution response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(executionResponse, null, 2)})}`);
+        logger.info(`${transactionDetail.processId} - Response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(executionResponse, null, 2)})}`);
 
         if (executionResponse.status === ORDER_STATUS.FILLED) {
-            logger.info(`${transactionDetail.processId} - Order ${executionResponse.status} at function ${FUNCTION_INDEX + 1}`);
+            logger.info(`${transactionDetail.processId} - Order fully executed at function ${FUNCTION_INDEX + 1}`);
             const passQty = executionResponse.side === SIDE.BUY? executionResponse.executedQty : executionResponse.cummulativeQuoteQty;
 
             return transaction4(newTransactionDetail, passQty);
-        } else {
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
-            return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now()); // Start timer
-        }
-    } catch(error) {
-        handleSubProcessError(error, updatedTransactionDetail, FUNCTION_INDEX, quantity);
-    }
-}
+        } else if (parseFloat(executionResponse.executedQty)) { // Partial
+            logger.info(`${transactionDetail.processId} - Partial order placed at ${FUNCTION_INDEX + 1}`);
 
-async function checkAndProcessOrder(transactionDetail, error) {
-    const statusResponse = await checkOrderStatus({
-            symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
-            orderId: transactionDetail.transactions[FUNCTION_INDEX].orderId
-        }),
-        updatedValues = {
-            orderId: statusResponse.orderId,
-            cummulativeQuoteQty: statusResponse.cummulativeQuoteQty,
-            executedQty: statusResponse.executedQty,
-            setPrice: statusResponse.price
-            // "fills" field is not returned by Binance
-        },
-        newTransactionDetail = updateTransactionDetail(transactionDetail, FUNCTION_INDEX, updatedValues);
-
-    logger.info(`${transactionDetail.processId} - Status response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(statusResponse, null, 2)})}`);
-
-    if (statusResponse.status === ORDER_STATUS.FILLED) {
-        logger.info(`${transactionDetail.processId} - Order already filled at function ${FUNCTION_INDEX + 1}`);
-        const passQty = statusResponse.side === SIDE.BUY? statusResponse.executedQty : statusResponse.cummulativeQuoteQty;
-
-        return transaction4(newTransactionDetail, passQty);
-    } else {
-        // Something unusual
-        logger.error(`${transactionDetail.processId} - [UNUSUAL CANCEL] Order ID: ${transactionDetail.transactions[FUNCTION_INDEX].orderId} at function ${FUNCTION_INDEX + 1} - ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`);
-    }
-}
-
-async function cancelOpenOrder(transactionDetail, quantity) {
-    try {
-        const cancelResponse = await cancelOrder({
-                symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
-                orderId: transactionDetail.transactions[FUNCTION_INDEX].orderId
-            }),
-            updatedValues = {
-                orderId: cancelResponse.orderId,
-                cummulativeQuoteQty: cancelResponse.cummulativeQuoteQty,
-                executedQty: cancelResponse.executedQty,
-                setPrice: cancelResponse.price
-                // "fills" field is not returned by Binance
-            },
-            newTransactionDetail = updateTransactionDetail(transactionDetail, FUNCTION_INDEX, updatedValues);
-
-        logger.info(`${transactionDetail.processId} - Cancel response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(cancelResponse, null, 2)})}`);
-
-        if (cancelResponse.status === ORDER_STATUS.CANCELED) { // Partial or nothing case
-            logger.info(`${transactionDetail.processId} - Order successfully canceled at function ${FUNCTION_INDEX + 1}`);
-
-            if (parseFloat(cancelResponse.executedQty)) { // Partial case
-                let passQty, repeatQty;
-
-                if (cancelResponse.side === SIDE.BUY) {
-                    passQty = cancelResponse.executedQty;
-                    repeatQty = cancelResponse.cummulativeQuoteQty;
-                } else {
-                    passQty = cancelResponse.cummulativeQuoteQty;
-                    repeatQty = cancelResponse.executedQty;
-                }
-
-                const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
-
-                 // Run both transactions in parallel and return their results
-                return Promise.allSettled([
-                    transaction3(newTransactionDetail, remainingAssetQty, false).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
-                    transaction4(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
-                ]);
-            } else { // Nothing got filled
-                return transaction3(newTransactionDetail, quantity, false);
+            if (executionResponse.side === SIDE.BUY) {
+                passQty = executionResponse.executedQty;
+                repeatQty = executionResponse.cummulativeQuoteQty;
+            } else {
+                passQty = executionResponse.cummulativeQuoteQty;
+                repeatQty = executionResponse.executedQty;
             }
-        } else {
-            logger.info(`${transactionDetail.processId} - Order failed to cancel (based on status) at function ${FUNCTION_INDEX + 1}: No open orders`);
-            // Check if the order was already executed
-            return checkAndProcessOrder(newTransactionDetail);
+
+            const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
+
+            // Run both transactions in parallel and return their results
+            return Promise.allSettled([
+                transaction3(newTransactionDetail, remainingAssetQty, attempts - 1, subNodeIndex).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
+                transaction4(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
+            ]);
+        } else { // Nothing got filled
+            logger.info(`${transactionDetail.processId} - Order expired at function ${FUNCTION_INDEX + 1}: Nothing got filled - Retrying for ${attempts - 1} more attempts for sub-node - ${JSON.stringify(SUB_NODES[subNodeIndex], null, 2)}`);
+            return transaction3(newTransactionDetail, quantity, attempts - 1, subNodeIndex);
         }
     } catch(error) {
-        logger.info(`${transactionDetail.processId} - Order failed to cancel (based on error) at function ${FUNCTION_INDEX + 1}: No open orders`);
-        // Check if the order was already executed
-        return checkAndProcessOrder(transactionDetail, error);
-    }
-}
-
-async function checkOrderStatusInLoop(transactionDetail, quantity, start) {
-    const statusResponse = await checkOrderStatus({
-            symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
-            orderId: transactionDetail.transactions[FUNCTION_INDEX].orderId
-        }),
-        updatedValues = {
-            orderId: statusResponse.orderId,
-            cummulativeQuoteQty: statusResponse.cummulativeQuoteQty,
-            executedQty: statusResponse.executedQty,
-            setPrice: statusResponse.price
-            // "fills" field is not returned by Binance
-        },
-        newTransactionDetail = updateTransactionDetail(transactionDetail, FUNCTION_INDEX, updatedValues);
-
-    logger.info(`${transactionDetail.processId} - Status response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(statusResponse, null, 2)})}`);
-
-    if (statusResponse.status === ORDER_STATUS.FILLED) {
-        logger.info(`${transactionDetail.processId} - Order fully executed at function ${FUNCTION_INDEX + 1}`);
-        const passQty = statusResponse.side === SIDE.BUY? statusResponse.executedQty : statusResponse.cummulativeQuoteQty;
-
-        return transaction4(newTransactionDetail, passQty);
-    } else { // Partial or empty case
-        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
-        const end = performance.now(); // End timer
-
-        if (end - start < ITERATION_TIME) { // Time is remaining
-            logger.info(`${transactionDetail.processId} - Re-checking order status at function ${FUNCTION_INDEX + 1}`);
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
-            return checkOrderStatusInLoop(newTransactionDetail, quantity, start);
-        }
-
-        // No time is remaining, cancel the current order and make a reattempt (if remaining) when the order gets canceled
-        return cancelOpenOrder(newTransactionDetail, quantity);
+        handleSubProcessError(error, transactionDetail, FUNCTION_INDEX, quantity);
     }
 }
 

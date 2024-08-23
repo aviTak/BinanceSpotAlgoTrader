@@ -1,15 +1,33 @@
 const { v4: uuidv4 } = require("uuid");
 const { performance } = require("perf_hooks");
 
-const { TRANSACTION_TEMPLATE } = require("./config/constants");
+const { TRANSACTION_DETAIL, SIDE } = require("./config/constants");
 const transaction1 = require("./transactions/transaction1");
 const logger = require("./utils/logger");
 
-const WAIT_TIME = 1000; // Time in ms
+function getTransactionDetail() {
+    const transactionDetail = JSON.parse(JSON.stringify(TRANSACTION_DETAIL));
+
+    transactionDetail["processId"] = uuidv4(); // Unique ID of each tree
+    transactionDetail["consumedTime"] = new Date();
+
+    // Create a copy of the 0th transaction and modify necessary fields for reverse transaction
+    const reverseTransaction = {
+        ...transactionDetail.transactions[0],
+        function: "reverseTransaction1",
+        side: transactionDetail.transactions[0].side === SIDE.BUY? SIDE.SELL : SIDE.BUY
+    };
+
+    // Append the new transaction to the transactions array
+    return {
+        ...transactionDetail,
+        transactions: [...transactionDetail.transactions, reverseTransaction]
+    };
+}
 
 // Infinite loop to keep running indefinitely
 async function mainLoop() {
-    const transactionDetail = JSON.parse(JSON.stringify(TRANSACTION_TEMPLATE));
+    const transactionDetail = getTransactionDetail();
 
     while (true) {
         const processId = uuidv4(); // Unique ID of each tree
@@ -26,15 +44,14 @@ async function mainLoop() {
             logger.error(`${processId} processId cycle failed: ${error}`);
         } finally {
             const end = performance.now(), // End timer
-                timeTaken = ((end - start) / 1000).toFixed(2);
+                timeTaken = ((end - start) / 1000).toFixed(2); // Calculate time taken in seconds with one decimal place
+                // remainingTime = timeTaken % 1 === 0 ? 0 : (1 - (timeTaken % 1)).toFixed(1) * 1000; // Calculate the remaining time to the next second
 
             logger.info(`Time taken by ${processId}: ${timeTaken}s`);
 
-            if (timeTaken < 1) { // Time in seconds
-                await new Promise(resolve => setTimeout(resolve, WAIT_TIME)); // Wait and then restart
-            }
+            // Wait for remaining time
+            // await new Promise(resolve => setTimeout(resolve, remainingTime));
 
-            /* Uncomment the return statement below to run only a single process */
             return;
         }
     }
