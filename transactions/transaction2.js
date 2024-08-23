@@ -1,29 +1,28 @@
 const { executeOrder, fetchBidAskPrices, checkOrderStatus, cancelOrder, fetchMarketPrices } = require("../api/trading");
-const { ORDER_STATUS, TRANSACTION_ATTEMPTS, TYPE, TIME_IN_FORCE, SIDE, PRICE_TYPE, SYMBOLS, TRANSACTION_STATUS } = require("../config/constants");
-const { updateAllPrices, getOrderInfo, updateTransactionDetail, handleSubProcessError, mapPriceResponseToOrder } = require("../utils/helpers");
+const { ORDER_STATUS, TRANSACTION_ATTEMPTS, TYPE, TIME_IN_FORCE, SIDE } = require("../config/constants");
+const { updateAllPrices, getOrderInfo, updateTransactionDetail, handleSubProcessError } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const transaction3 = require("./transaction3");
 const reverseTransaction1 = require("./reverseTransaction1");
 
 const FUNCTION_INDEX = 1,
-    ITERATION_TIME_MARKET = 1000, // Time in ms
-    ITERATION_TIME_BID_ASK = 1000,
-    DELAY_STATUS_CHECK = 0;
+    ITERATION_TIME = 1000; // Time in ms
 
 async function transaction2(
     transactionDetail,
     quantity,
     attempts = TRANSACTION_ATTEMPTS.TRANSACTION_2.MARKET,
-    isMarketPrice = true,
-    shouldPlaceOrder = true
+    isMarketPrice = true
 ) {
     if (attempts <= 0) {
-        const message = isMarketPrice
-            ? `${transactionDetail.processId} - Nothing got filled at market order from function ${FUNCTION_INDEX + 1}`
-            : `${transactionDetail.processId} - Nothing got filled at both market and bid/ask; Remaining quantity ${quantity} at function ${FUNCTION_INDEX + 1}: Partial`;
-
-        logger.info(message);
-        return cancelOpenOrder(transactionDetail, quantity, isMarketPrice);
+        if (isMarketPrice) {
+            isMarketPrice = false;
+            attempts = TRANSACTION_ATTEMPTS.TRANSACTION_2.ASK_BUY;
+            logger.info(`${transactionDetail.processId} - Nothing filled at market order from function ${FUNCTION_INDEX + 1}; Now making an re-attempt at ask/bid price`);
+        } else {
+            logger.info(`${transactionDetail.processId} - Remaining quantity ${quantity} at function ${FUNCTION_INDEX + 1}: Partial`);
+            return reverseTransaction1(transactionDetail, quantity); // Reverse order
+        }
     }
 
     logger.info(`${transactionDetail.processId} - Attempts remaining - ${attempts} at function ${FUNCTION_INDEX + 1}`);
@@ -32,54 +31,15 @@ async function transaction2(
             fetchMarketPrices(),
             fetchBidAskPrices()
         ]),
-        symbolArray = Object.keys(SYMBOLS),
-        bidArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.BID_PRICE),
-        askArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.ASK_PRICE),
-        marketArray = mapPriceResponseToOrder(symbolArray, marketPrices, PRICE_TYPE.MARKET_PRICE),
-        /* User-defined formulas */
-        formula1 =bidArray[2]/ parseFloat(transactionDetail.transactions[0].executedPrice) /parseFloat(transactionDetail.transactions[1].marketPrice)-1,
-        formula2 = bidArray[0]*parseFloat(transactionDetail.transactions[1].marketPrice)/parseFloat(transactionDetail.transactions[0].executedPrice) -1,
-        formula3=bidArray[2]/parseFloat(transactionDetail.transactions[0].executedPrice)/bidArray[1]-1,
-        formula4=bidArray[0]*askArray[1]/parseFloat(transactionDetail.transactions[0].executedPrice)-1,
-        formula5=parseFloat(0.1/122),
-        side = transactionDetail.transactions[1].side,
-        condition = isMarketPrice
-            ? (side === SIDE.BUY ? formula1 >=formula5: formula2>=formula5)
-            : (side === SIDE.BUY ? formula3 >=formula5: formula4>=formula5);
-
-        logger.info(`formula1 = ${formula1}`);
-        logger.info(`formula2 = ${formula2}`);
-        logger.info(`formula3 = ${formula3}`);
-        logger.info(`formula4 = ${formula4}`);
-        logger.info(`formula5 = ${formula5}`);
-        logger.info(`c3 = ${parseFloat(transactionDetail.transactions[1].marketPrice)}`);
-        logger.info(`c2 = ${bidArray[2]}`);
-        logger.info(`c1 = ${parseFloat(transactionDetail.transactions[0].executedPrice)}`);
-
-        logger.info(`c3 = ${parseFloat(transactionDetail.transactions[1].marketPrice)}`);
-        logger.info(`c2 =${parseFloat(transactionDetail.transactions[0].executedPrice)}`) ;
-        logger.info(`c1 = ${bidArray[0]}`);
-        logger.info(`c1 = ${bidArray[1]}`);
+        updatedTransactionDetail = updateAllPrices(transactionDetail, {
+            marketPrices: isMarketPrice? marketPrices : undefined,
+            bidAskPrices: !isMarketPrice ? bidAskPrices : undefined
+        }),
+        orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX, isMarketPrice);
 
     // Check condition
-    if (condition
-    ) {
-        /* Code will only run for this condition block */
-
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions are met; Progressing`);
-
-        if (!shouldPlaceOrder) {
-            return checkOrderStatusInLoop(transactionDetail, quantity, attempts, isMarketPrice, performance.now()); // Start timer
-        }
-
-        const updatedTransactionDetail = updateAllPrices(transactionDetail, {
-                /* Previous market price is taken if the below line is commented */
-                // marketPrices: isMarketPrice? marketPrices : undefined,
-                bidAskPrices: !isMarketPrice? bidAskPrices : undefined
-            }),
-            orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX, isMarketPrice); // Last parameter is used to check whether the trade is to be placed at market or at bid/ask price
-
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
+    if (transactionDetail.condition1 === 1 && transactionDetail.condition2 === 1) {
+        // Code will only run for this condition block
 
         try {
             logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ${isMarketPrice? "market" : "ask/buy"} price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
@@ -89,7 +49,7 @@ async function transaction2(
                     type: TYPE.LIMIT,
                     timeInForce: TIME_IN_FORCE.GTC,
                     quantity: quantity
-                }),
+                }, true),
                 updatedValues = {
                     orderId: executionResponse.orderId,
                     cummulativeQuoteQty: executionResponse.cummulativeQuoteQty,
@@ -102,20 +62,43 @@ async function transaction2(
             logger.info(`${transactionDetail.processId} - Execution response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(executionResponse, null, 2)})}`);
 
             if (executionResponse.status === ORDER_STATUS.FILLED) {
-                logger.info(`${transactionDetail.processId} - Order ${executionResponse.status} at function ${FUNCTION_INDEX + 1}`);
+                logger.info(`${transactionDetail.processId} - Order fully executed at function ${FUNCTION_INDEX + 1}`);
                 const passQty = executionResponse.side === SIDE.BUY? executionResponse.executedQty : executionResponse.cummulativeQuoteQty;
 
                 return transaction3(newTransactionDetail, passQty);
-            } else {
-                await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
+            } else if (executionResponse.status === ORDER_STATUS.PARTIALLY_FILLED) {
+                if (isMarketPrice) {
+                    logger.info(`${transactionDetail.processId} - Order partially executed at function ${FUNCTION_INDEX + 1} at market price`);
+                    return checkOrderStatusInLoop(newTransactionDetail, quantity, attempts, isMarketPrice, performance.now()); // Start timer
+                } else {
+                    if (executionResponse.side === SIDE.BUY) {
+                        passQty = executionResponse.executedQty;
+                        repeatQty = executionResponse.cummulativeQuoteQty;
+                    } else {
+                        passQty = executionResponse.cummulativeQuoteQty;
+                        repeatQty = executionResponse.executedQty;
+                    }
+
+                    const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
+
+                    logger.info(`${transactionDetail.processId} - Order partially executed at function ${FUNCTION_INDEX + 1} at ask/bid price`);
+
+                     // Run both transactions in parallel and return their results
+                    return Promise.allSettled([
+                        transaction2(newTransactionDetail, remainingAssetQty, attempts - 1, isMarketPrice).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
+                        transaction3(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
+                    ]);
+                }
+            } else { // Nothing got filled
+                logger.info(`${transactionDetail.processId} - Nothing got filled function ${FUNCTION_INDEX + 1}; Start checking order status`);
                 return checkOrderStatusInLoop(newTransactionDetail, quantity, attempts, isMarketPrice, performance.now()); // Start timer
             }
         } catch(error) {
             handleSubProcessError(error, transactionDetail, FUNCTION_INDEX, quantity);
         }
     } else {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions are not met; Reversing order`);
-        return reverseTransaction1(transactionDetail, quantity, TRANSACTION_STATUS.REVERSED_CONDITION); // Reverse order
+        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Condition1 and condition2 are not 1`);
+        return reverseTransaction1(transactionDetail, quantity, true); // Reverse order
     }
 }
 
@@ -146,7 +129,7 @@ async function checkAndProcessOrder(transactionDetail, error) {
     }
 }
 
-async function cancelOpenOrder(transactionDetail, quantity, isMarketPrice) {
+async function cancelOpenOrder(transactionDetail, quantity, attempts, isMarketPrice) {
     try {
         const cancelResponse = await cancelOrder({
                 symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
@@ -179,30 +162,18 @@ async function cancelOpenOrder(transactionDetail, quantity, isMarketPrice) {
 
                 const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
 
-                if (isMarketPrice) {
-                    // Run both transactions in parallel and return their results
-                    return Promise.allSettled([
-                        transaction2(newTransactionDetail, remainingAssetQty, TRANSACTION_ATTEMPTS.TRANSACTION_2.BID_ASK, false).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
-                        transaction3(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
-                    ]);
-                }
-
+                 // Run both transactions in parallel and return their results
                 return Promise.allSettled([
-                    reverseTransaction1(newTransactionDetail, quantity, TRANSACTION_STATUS.REVERSED_ATTEMPT).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
+                    transaction2(newTransactionDetail, remainingAssetQty, attempts - 1, isMarketPrice).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
                     transaction3(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
                 ]);
             } else { // Nothing got filled
-                if (isMarketPrice) { // Re-attempt with bid/ask price now
-                    return transaction2(newTransactionDetail, quantity, TRANSACTION_ATTEMPTS.TRANSACTION_2.BID_ASK, false);
-                }
-
-                // Reverse since both market and bid/ask orders have been attempted
-                return reverseTransaction1(transactionDetail, quantity, TRANSACTION_STATUS.REVERSED_ATTEMPT);
+                return transaction2(newTransactionDetail, quantity, attempts - 1, isMarketPrice);
             }
         } else {
             logger.info(`${transactionDetail.processId} - Order failed to cancel (based on status) at function ${FUNCTION_INDEX + 1}: No open orders`);
             // Check if the order was already executed
-            return checkAndProcessOrder(newTransactionDetail);
+            return checkAndProcessOrder(transactionDetail);
         }
     } catch(error) {
         logger.info(`${transactionDetail.processId} - Order failed to cancel (based on error) at function ${FUNCTION_INDEX + 1}: No open orders`);
@@ -233,18 +204,17 @@ async function checkOrderStatusInLoop(transactionDetail, quantity, attempts, isM
 
         return transaction3(newTransactionDetail, passQty);
     } else { // Partial or empty case
-        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
-        const end = performance.now(), // End timer
-            iterationTime = isMarketPrice? ITERATION_TIME_MARKET : ITERATION_TIME_BID_ASK;
+        const end = performance.now(); // End timer
 
-        if (end - start < iterationTime) { // Time is remaining
+        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
+
+        if (end - start < ITERATION_TIME) { // Time is remaining
             logger.info(`${transactionDetail.processId} - Re-checking order status at function ${FUNCTION_INDEX + 1}`);
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
             return checkOrderStatusInLoop(newTransactionDetail, quantity, attempts, isMarketPrice, start);
         }
 
-        // No time is remaining; Do not cancel just make a reattempt
-        return transaction2(newTransactionDetail, quantity, attempts - 1, isMarketPrice, false);
+        // No time is remaining, cancel the current order and make a reattempt (if remaining) when the order gets canceled
+        return cancelOpenOrder(newTransactionDetail, quantity, attempts, isMarketPrice);
     }
 }
 

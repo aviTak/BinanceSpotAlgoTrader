@@ -1,34 +1,26 @@
 const { executeOrder, checkOrderStatus, cancelOrder, fetchBidAskPrices } = require("../api/trading");
-const { TYPE, TRANSACTION_STATUS, TIME_IN_FORCE, ORDER_STATUS, SIDE, CONDITION_SETS } = require("../config/constants");
+const { TYPE, TRANSACTION_STATUS, TIME_IN_FORCE, ORDER_STATUS, SIDE } = require("../config/constants");
 const { endSubProcess, getOrderInfo, updateTransactionDetail, handleSubProcessError, updateAllPrices } = require("../utils/helpers");
 const logger = require("../utils/logger");
 
 const FUNCTION_INDEX = 3,
-    ITERATION_TIME = 1000, // Time in ms
-    DELAY_STATUS_CHECK = 0;
+    ITERATION_TIME = 1000; // Time in ms
 
 async function transaction4(
     transactionDetail,
     quantity,
     isFirstAttempt = true
 ) {
-    if (CONDITION_SETS[transactionDetail.set].trades.length === 3) {
-        // When only three coin pairs are used instaed of the original four
-        return endSubProcess(transactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.COMPLETED, "Sub-process completed; Terminating branch");
-    }
-
-    let updatedTransactionDetail = transactionDetail,
-        orderInfo;
+    let orderInfo;
 
     if (isFirstAttempt) {
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} first attempt`);
         orderInfo = getOrderInfo(transactionDetail, FUNCTION_INDEX);
     } else {
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} consecutive attempt`);
-        const bidAskPrices = await fetchBidAskPrices();
+        const bidAskPrices = await fetchBidAskPrices(),
+            updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices });
 
-        updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices });
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
         orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX);
     }
 
@@ -48,19 +40,42 @@ async function transaction4(
                 setPrice: executionResponse.price,
                 fills: executionResponse.fills
             },
-            newTransactionDetail = updateTransactionDetail(updatedTransactionDetail, FUNCTION_INDEX, updatedValues);
+            newTransactionDetail = updateTransactionDetail(transactionDetail, FUNCTION_INDEX, updatedValues);
 
         logger.info(`${transactionDetail.processId} - Execution response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(executionResponse, null, 2)})}`);
 
         if (executionResponse.status === ORDER_STATUS.FILLED) {
-            logger.info(`${transactionDetail.processId} - Order ${executionResponse.status} at function ${FUNCTION_INDEX + 1}`);
+            logger.info(`${transactionDetail.processId} - Order fully executed at function ${FUNCTION_INDEX + 1}`);
             return endSubProcess(newTransactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.COMPLETED, "Sub-process completed; Terminating branch");
-        } else {
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
-            return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now()); // Start timer
-        }
+        } else if (executionResponse.status === ORDER_STATUS.PARTIALLY_FILLED) {
+                if (isFirstAttempt) {
+                    logger.info(`${transactionDetail.processId} - Order partially executed at function ${FUNCTION_INDEX + 1} at market price`);
+                    return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now()); // Start timer
+                } else {
+                    if (executionResponse.side === SIDE.BUY) {
+                        passQty = executionResponse.executedQty;
+                        repeatQty = executionResponse.cummulativeQuoteQty;
+                    } else {
+                        passQty = executionResponse.cummulativeQuoteQty;
+                        repeatQty = executionResponse.executedQty;
+                    }
+
+                    const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
+
+                    logger.info(`${transactionDetail.processId} - Order partially executed at function ${FUNCTION_INDEX + 1} at ask/bid price`);
+
+                     // Run both transactions in parallel and return their results
+                    return Promise.allSettled([
+                        transaction4(newTransactionDetail, remainingAssetQty, false).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
+                        endSubProcess(newTransactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.COMPLETED, "Sub-process completed; Terminating branch").catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
+                    ]);
+                }
+            } else { // Nothing got filled
+                logger.info(`${transactionDetail.processId} - Nothing got filled function ${FUNCTION_INDEX + 1}; Start checking order status`);
+                return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now()); // Start timer
+            }
     } catch(error) {
-        handleSubProcessError(error, updatedTransactionDetail, FUNCTION_INDEX, quantity);
+        handleSubProcessError(error, transactionDetail, FUNCTION_INDEX, quantity);
     }
 }
 
@@ -82,6 +97,7 @@ async function checkAndProcessOrder(transactionDetail, error) {
 
     if (statusResponse.status === ORDER_STATUS.FILLED) {
         logger.info(`${transactionDetail.processId} - Order already filled at function ${FUNCTION_INDEX + 1}`);
+
         return endSubProcess(newTransactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.COMPLETED, "Sub-process completed; Terminating branch");
     } else {
         // Something unusual
@@ -133,7 +149,7 @@ async function cancelOpenOrder(transactionDetail, quantity) {
         } else {
             logger.info(`${transactionDetail.processId} - Order failed to cancel (based on status) at function ${FUNCTION_INDEX + 1}: No open orders`);
             // Check if the order was already executed
-            return checkAndProcessOrder(newTransactionDetail);
+            return checkAndProcessOrder(transactionDetail);
         }
     } catch(error) {
         logger.info(`${transactionDetail.processId} - Order failed to cancel (based on error) at function ${FUNCTION_INDEX + 1}: No open orders`);
@@ -162,12 +178,12 @@ async function checkOrderStatusInLoop(transactionDetail, quantity, start) {
         logger.info(`${transactionDetail.processId} - Order fully executed at function ${FUNCTION_INDEX + 1}`);
         return endSubProcess(newTransactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.COMPLETED, "Sub-process completed; Terminating branch");
     } else { // Partial or empty case
-        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
         const end = performance.now(); // End timer
+
+        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
 
         if (end - start < ITERATION_TIME) { // Time is remaining
             logger.info(`${transactionDetail.processId} - Re-checking order status at function ${FUNCTION_INDEX + 1}`);
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
             return checkOrderStatusInLoop(newTransactionDetail, quantity, start);
         }
 
