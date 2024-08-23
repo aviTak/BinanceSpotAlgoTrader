@@ -1,74 +1,37 @@
 const { executeOrder, fetchBidAskPrices, checkOrderStatus, cancelOrder, fetchMarketPrices } = require("../api/trading");
-const { ORDER_STATUS, TRANSACTION_ATTEMPTS, TYPE, TIME_IN_FORCE, SIDE, CONDITION_SETS, PRICE_TYPE, TRANSACTION_STATUS, SYMBOLS } = require("../config/constants");
-const { updateAllPrices, getOrderInfo, updateTransactionDetail, handleSubProcessError, mapPriceResponseToOrder, createTransactionDetail, endSubProcess } = require("../utils/helpers");
+const { ORDER_STATUS, TRANSACTION_ATTEMPTS, INITIAL_QUANTITY, TYPE, TIME_IN_FORCE, SIDE } = require("../config/constants");
+const { updateAllPrices, getOrderInfo, updateTransactionDetail, handleSubProcessError } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const transaction2 = require("./transaction2");
 
 const FUNCTION_INDEX = 0,
-    ITERATION_TIME = 2000, // Time in ms
-    DELAY_STATUS_CHECK = 0;
+    ITERATION_TIME = 1000; // Time in ms
 
 async function transaction1(
     transactionDetail,
-    quantity,
+    quantity = INITIAL_QUANTITY,
     attempts = TRANSACTION_ATTEMPTS.TRANSACTION_1
 ) {
     if (attempts <= 0) {
         // Leave aside the remaining quantity
-        logger.info(`${transactionDetail.processId} - Remaining quantity ${quantity} at function ${FUNCTION_INDEX + 1}: Partial completion - Terminating with remaining quantity`);
-        return endSubProcess(transactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.REJECTED_ATTEMPT, `Sub-process rejected: Order did not get executed in any attempt; Terminating branch`);
+        logger.info(`${transactionDetail.processId} - Remaining quantity ${quantity} at function ${FUNCTION_INDEX + 1}: Partial`);
+        return;
     }
 
     logger.info(`${transactionDetail.processId} - Attempts remaining - ${attempts} at function ${FUNCTION_INDEX + 1}`);
 
-    let builtTransactionDetail;
-
     const [ marketPrices, bidAskPrices ] = await Promise.all([
             fetchMarketPrices(),
             fetchBidAskPrices()
-        ]),
-        symbolArray = Object.keys(SYMBOLS),
-        bidArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.BID_PRICE),
-        askArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.ASK_PRICE),
-        marketArray = mapPriceResponseToOrder(symbolArray, marketPrices, PRICE_TYPE.MARKET_PRICE);
-        /* User-defined formulas */
-        formula1 = (bidArray[2] / (marketArray[1] )/ askArray[0] -1)
-        formula2 =  marketArray[1]*bidArray[0]/askArray[2]-1
-        conditon=parseFloat(0.11/122)
-        //quantity??CONDITION_SETS["A"].inititialQty
-        logger.info(`formula1 = ${formula1}`);
-        logger.info(`formula2 = ${formula2}`);
-        logger.info(`c2 = ${askArray[2]}`);
-        logger.info(`c1 = ${bidArray[0]}`);
-        logger.info(`c3 = ${marketArray[1]}`);
-        logger.info(`c2 = ${askArray[0]}`);
-        logger.info(`c1 = ${bidArray[2]}`);
-        logger.info(`c3 = ${marketArray[1]}`);
-        logger.info(`c3 = ${conditon}`);
-    // Check condition
-    if (formula2 < formula1 && formula1>=conditon) { // Set A
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Condition 1 met; Using Set A`);
-        builtTransactionDetail = createTransactionDetail(transactionDetail, "A");
-
-        /* Changed initial quantity based on set A */
-        quantity = quantity?? CONDITION_SETS["A"].inititialQty;
-    } else if (formula1 < formula2 && formula2>=conditon) { // Set B
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Condition 2 is met; Using Set B`);
-        builtTransactionDetail = createTransactionDetail(transactionDetail, "B");
-
-        /* Changed initial quantity based on set B */
-        quantity = quantity?? CONDITION_SETS["B"].inititialQty;
-    } else {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions are not met`);
-        return endSubProcess(transactionDetail, FUNCTION_INDEX, TRANSACTION_STATUS.REJECTED_CONDITION, `Sub-process rejected: Order did not get executed as conditions were not met; Terminating branch`);
-    }
-
-    logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Created transaction detail - ${JSON.stringify(builtTransactionDetail)}`);
-
-    const updatedTransactionDetail = updateAllPrices(builtTransactionDetail, { marketPrices, bidAskPrices }), // Use market price in-case bid/ask is zero. Also, the previous market price of pair 2 is used in function 2
+        ]), // marketPrices will be used later
+        updatedTransactionDetail = updateAllPrices(transactionDetail, { marketPrices, bidAskPrices }), // In-case bid/ask is zero
         orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX);
 
-    logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
+    // Check condition
+    if (transactionDetail.condition1 !== 1) {
+        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Condition1 is not 1`);
+        return;
+    }
 
     try {
         logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
@@ -96,11 +59,10 @@ async function transaction1(
 
             return transaction2(newTransactionDetail, passQty);
         } else {
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
             return checkOrderStatusInLoop(newTransactionDetail, quantity, attempts, performance.now()); // Start timer
         }
     } catch(error) {
-        handleSubProcessError(error, updatedTransactionDetail, FUNCTION_INDEX, quantity);
+        handleSubProcessError(error, transactionDetail, FUNCTION_INDEX, quantity);
     }
 }
 
@@ -175,7 +137,7 @@ async function cancelOpenOrder(transactionDetail, quantity, attempts) {
         } else {
             logger.info(`${transactionDetail.processId} - Order failed to cancel (based on status) at function ${FUNCTION_INDEX + 1}: No open orders`);
             // Check if the order was already executed
-            return checkAndProcessOrder(newTransactionDetail);
+            return checkAndProcessOrder(transactionDetail);
         }
     } catch(error) {
         logger.info(`${transactionDetail.processId} - Order failed to cancel (based on error) at function ${FUNCTION_INDEX + 1}: No open orders`);
@@ -206,12 +168,12 @@ async function checkOrderStatusInLoop(transactionDetail, quantity, attempts, sta
 
         return transaction2(newTransactionDetail, passQty);
     } else { // Partial or empty case
-        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
         const end = performance.now(); // End timer
+
+        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
 
         if (end - start < ITERATION_TIME) { // Time is remaining
             logger.info(`${transactionDetail.processId} - Re-checking order status at function ${FUNCTION_INDEX + 1}`);
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
             return checkOrderStatusInLoop(newTransactionDetail, quantity, attempts, start);
         }
 

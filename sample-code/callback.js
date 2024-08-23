@@ -18,6 +18,9 @@ transaction1(transactionDetail, "1", true)
      console.error('Error in transaction1:', err);
  });
 
+return;
+
+
 transaction1(transactionDetail, "10", false, (result) => {
     console.log('Parent received:', result);
 });

@@ -1,17 +1,17 @@
 const { createLogger, format, transports } = require("winston");
-const DailyRotateFile = require("winston-daily-rotate-file");
 const path = require("path");
 const fs = require("fs");
 
 // Define the log directory and file paths
-const logDir = path.join(__dirname, "..", "log-files");
+const logDir = path.join(__dirname, "..", "log-files"),
+    errorLogPath = path.join(logDir, "error.log"),
+    combinedLogPath = path.join(logDir, "combined.log");
 
 // Create the logs directory if it doesn't exist
 if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir);
 }
 
-// Create the initial logger
 const logger = createLogger({
     level: "info",
     format: format.combine(
@@ -24,21 +24,8 @@ const logger = createLogger({
     ),
     defaultMeta: { service: "app" },
     transports: [
-        // Transport for general logs (info and above)
-        new DailyRotateFile({
-            filename: path.join(logDir, "combined-%DATE%.log"),
-            datePattern: "YYYY-MM-DD-HH",
-            zippedArchive: true,
-            maxFiles: "3d"
-        }),
-        // Separate transport for error logs
-        new DailyRotateFile({
-            filename: path.join(logDir, "error-%DATE%.log"),
-            datePattern: "YYYY-MM-DD-HH",
-            level: "error",
-            zippedArchive: true,
-            maxFiles: "3d"
-        })
+        new transports.File({ filename: errorLogPath, level: "error" }),
+        new transports.File({ filename: combinedLogPath })
     ]
 });
 

@@ -1,39 +1,3 @@
-## Steps to Start the Project
-1. To start your app in stage - npm run start
-2. To start your app in prod - npm run start:prod
-3. To stop the stage - npm run stop
-4. To view logs - npm run logs
-5. To view error logs - npm run logs:error
-5. To delete process - npm run delete
-6. To check status of processes - npm run status
-7. To clean log and CSV files on Mac/Linux - npm run clean
-
-## Count number of API calls in Logs
-1. ABRACADABRA[PRICES] - No. of API calls to fetch prices
-2. ABRACADABRA[ORDER] - No. of API calls to place an order
-3. ABRACADABRA[CANCEL] - No. of API calls to cancel an order
-4. ABRACADABRA[STATUS] - No. of API calls to check status of an order
-
-## Git Commands
-
-### First Time:-
-
-1. git remote add crypto-trading https://github.com/aviTak/Crypto-Trading.git
-2. git fetch crypto-trading structure-price
-3. git checkout -b release crypto-trading/structure-price
-4. git push origin release
-
-### Consecutives Times:-
-
-1. git pull crypto-trading structure-price
-
-
-## Command to delete log and csv files
-1. Macintosh: rm -rf csv-data log-files
-2. Windows: rd /s /q "csv-data" & rd /s /q "log-files"
-
-## Useful Links
-
 Merge CSV files online - https://merge-csv.com/
 
 Logs Prettifier - https://beautifier.io/
@@ -41,62 +5,31 @@ Logs Prettifier - https://beautifier.io/
 
 String to JSON - https://dadroit.com/string-to-json/
 
-## Function 1
+Command to delete log and csv files:-
+1. Macintosh: rm -rf csv-data log-files
+2. Windows: rmdir /s /q csv-data && rmdir /s /q log-files
 
-0. Fetch price --> condition === 1 toh code chalega varna retry after 1 second.
-1. Limit GTC, Check status jaldi se jaldi.
-2. Max 1 second mein pura ho gya toh aage badhao.
-3. 1 second paar ho gya toh cancel the order. Jitna hua hai usko aage bhej do. And bacha hua 1 baar aur try karo price dobara fetch karke and condition check karke.
-4. Ask price pe karna hai.
+Logic for changing the price:-
+0.530000 --> 0.530001 || 0.529999
 
+Explanation for sub-nodes in function 3:-
 
-## Function 2 (Iss mein market price bhi nikalna hai bid/ask ke sath)
+Sub-Node 1 --> Original Price pe IOC
+Sub-Node 2 --> Changed Price pe IOC
+Sub-Node 3 --> Market Price
 
-1. Condition 1 !== 1 --> Reverse at limit bid price. Wait for 1 second. Infinite attempts.
-2. Condition 1 === 1 && Condition 2 === 1:-
-    i. Limit GTC at Market Price and wait for 1 second (Same as function 1). Jo nahi hua (sum or all) voh next step pe jayega. Jo/jitna ho gya uss 1 second mein (or before) usse function 3 pe bhej deinge.
-    ii. Limit GTC at bid/ask. Same as function 1 with 2 attempts. Otherwise reverse.
-3. Varna reverse kar deinge.
+Yeh dekhna hai ki saare attempts khatam ho gaye toh dusre sub-node pe kaise jayega
 
 
-## Function 3, 4 (Condition check nahi hogi; Reverse mein bhi nahi hogi)
+Explanation for how we are handling quantity vs quoteOrderQty for buy and sell orders:-
 
-1. Limit GTC at existing bid/ask price. Wait for 1 second.
-2. Attempts infinite with new bid and ask price of coin three. Wait for 1 second.
-    1. Complete/Partial - Next function for executed.
-        Remaining quantity --> Same as nothing got filled (sum or all)
-    2. Nothing - Wait for 1 second.
+usdt/x -> sell - usdt pta hai -> quantity dalegi -> price not required in MO
+usdt/x -> buy - x pta hai -> quantity nikalegi price se -> market order ke liye quoteOrderQty chal jayegi and price nikane ki zaroorat nahi
 
-## FUNCTION R
+market buy - no need to calculate fees
+x/usdt -> buy - usdt pta hai -> quantity nikalegi price se -> market order ke liye quoteOrderQty chal jayegi and price nikane ki zaroorat nahi
+x/usdt -> sell - x pta hai -> quantity dalegi -> price not required in MO
 
-1. Attempts infinite with new bid and ask price of coin three. Wait for 1 second.
-
-## STEP 0
-
-0. Account balance check karna hai.
-1. Jab process start hoga toh function 1 price fetch karega and condtion calculate hogi aur change hogi. Coins beech mein change nahi kareinge yahin set kareinge. Same with buying pattern.
-2. Condition ka kaam aage sirf reverse karne mein kaam aaeyga.
-
-
-## Block A - Agar 90% ho jaata hai toh restart the complete process (500 ya minimum balance lga do)
-
-1. 500 --> 440 aa gya --> Process bhi complete ho gya --> Restart the process.
-2. 500 --> 450 jab bhi ho jayega --> Restart the process.
-3. 90% amount ho gayi hai toh dobara fir se 10% ke liye nahi chalna hai.
-
-
-*Email bhejna hoga --> Use Nodemailer*
-
-
-## Three Ways to Restart the Process:-
-
-1. Jab eik khatam hoga pura process toh hi agla process start hoga.
-2. Block A.
-3. We will restart the process every second (kuch ho na ho).
-
-## Explanation for executedQty vs cummulativeQuoteQty for buy and sell orders
-
-**Buy hai toh pehla vala bhejo (executedQty) aur sell hai toh dusra vala bhejo**
 
 ETHUSDT, ETHBTC || QTUMETH
 
@@ -119,7 +52,7 @@ ETHUSDT, ETHBTC || QTUMETH
 ]
 
 
-Step 1 BUY --> quantity nikalni padegi
+Step 1 BUY --> quantity nikali padegi
 10 USDT se 0.1 ETH buy kiya
 quantity = 10 / price
 
@@ -131,12 +64,77 @@ Step 2 Case 2 BUY --> quantity nikalni padegi
 0.1 ETH se 0.05 QTU liya
 quantity = 0.1 / price
 
-## Formula Format for Conditions
 
-(mp1+mp2+mp3+mp4)/(ap1*bp1+ap2*bp2+ap3*bp1+ap1*bp1)
+Details we need to fetch and update in each transaction:-
 
-0-10 --> [AIUSDT|BUY, AI......]
-11-20 --> [BTCUSDT,..]
-21-30 --> [BTCUSDT,...]
+func getOrderInfo(index --> (transactionDetailfunctionNo - 1))
+For every transaction we need to fetch - symbol, side, price, and precision of that function number
 
-**Eik hi coin pair 2 alag-alag (kahin buy-kahin sell) position/function pe ho sakta hai (in that case there are 3 coin pairs instead of 4)**
+func updateTransactionDetail(index --> (functionNo - 1))
+When that order is successfully placed, we need to update/<return> - cummulativeQuoteQty, executedQty, and executedPrice of that function number
+
+
+Response returned when an order is placed:-
+
+Order "status" - FILL, EXPIRED, PARTIAL
+
+For reverse order, we will delete that entry from TRANSACTION_DETAIL array and also the further array values and add a status - "Reversed on market order"
+
+Function 1
+
+0. Fetch price --> condition === 1 toh code chalega varna retry after 1 second.
+1. Limit GTC, Check status jaldi se jaldi.
+2. Max 1 second mein pura ho gya toh aage badhao.
+3. 1 second paar ho gya toh cancel the order. Jitna hua hai usko aage bhej do. And bacha hua 1 baar aur try karo price dobara fetch karke and condition check karke.
+4. Ask price pe karna hai.
+
+
+Function 2 (Iss mein market price bhi nikalna hai bid/ask ke sath)
+
+1. Condition 1 !== 1 --> Reverse at limit bid price. Wait for 1 second. Infinite attempts.
+2. Condition 1 === 1 && Condition 2 === 1:-
+    i. Limit GTC at Market Price and wait for 1 second (Same as function 1). Jo nahi hua (sum or all) voh next step pe jayega. Jo/jitna ho gya uss 1 second mein (or before) usse function 3 pe bhej deinge.
+    ii. Limit GTC at bid/ask. Same as function 1 with 2 attempts. Otherwise reverse.
+3. Varna reverse kar deinge.
+
+
+Function 3, 4 (Condition check nahi hogi; Reverse mein bhi nahi hogi)
+
+1. Limit GTC at existing bid/ask price. Wait for 1 second.
+2. Attempts infinite with new bid and ask price of coin three. Wait for 1 second.
+    1. Complete/Partial - Next function for executed.
+        Remaining quantity --> Same as nothing got filled (sum or all)
+    2. Nothing - Wait for 1 second.
+
+FUNCTION R
+
+1. Attempts infinite with new bid and ask price of coin three. Wait for 1 second.
+
+STEP 0
+
+0. Account balance check karna hai.
+1. Jab process start hoga toh function 1 price fetch karega and condtion calculate hogi aur change hogi. Coins beech mein change nahi kareinge yahin set kareinge. Same with buying pattern.
+2. Condition ka kaam aage sirf reverse karne mein kaam aaeyga.
+
+---------------------------------------------------------------------------------------------------------------
+
+
+Block A - Agar 90% ho jaata hai toh restart the complete process (500 ya minimum balance lga do)
+
+1. 500 --> 440 aa gya --> Process bhi complete ho gya --> Restart the process.
+2. 500 --> 450 jab bhi ho jayega --> Restart the process.
+3. 90% amount ho gayi hai toh dobara fir se 10% ke liye nahi chalna hai.
+
+
+Email bhejna hoga
+
+
+Three Ways to Restart the Process:-
+
+1. Jab eik khatam hoga pura process toh hi agla process start hoga.
+2. Block A.
+3. We will restart the process every second (kuch ho na ho).
+
+
+
+Buy hai toh pehla vala bhejo (executedQty) aur sell hai toh dusra vala bhejo

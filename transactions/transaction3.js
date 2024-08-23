@@ -5,26 +5,23 @@ const logger = require("../utils/logger");
 const transaction4 = require("./transaction4");
 
 const FUNCTION_INDEX = 2,
-    ITERATION_TIME = 1000, // Time in ms
-    DELAY_STATUS_CHECK = 0;
+    ITERATION_TIME = 1000; // Time in ms
 
 async function transaction3(
     transactionDetail,
     quantity,
     isFirstAttempt = true
 ) {
-    let updatedTransactionDetail = transactionDetail,
-        orderInfo;
+    let orderInfo;
 
     if (isFirstAttempt) {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} first attempt`); // Bid/ask price
+        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} first attempt`);
         orderInfo = getOrderInfo(transactionDetail, FUNCTION_INDEX);
     } else {
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} consecutive attempt`);
-        const bidAskPrices = await fetchBidAskPrices();
+        const bidAskPrices = await fetchBidAskPrices(),
+            updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices });
 
-        updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices });
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
         orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX);
     }
 
@@ -44,7 +41,7 @@ async function transaction3(
                 setPrice: executionResponse.price,
                 fills: executionResponse.fills
             },
-            newTransactionDetail = updateTransactionDetail(updatedTransactionDetail, FUNCTION_INDEX, updatedValues);
+            newTransactionDetail = updateTransactionDetail(transactionDetail, FUNCTION_INDEX, updatedValues);
 
         logger.info(`${transactionDetail.processId} - Execution response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(executionResponse, null, 2)})}`);
 
@@ -54,11 +51,10 @@ async function transaction3(
 
             return transaction4(newTransactionDetail, passQty);
         } else {
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
             return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now()); // Start timer
         }
     } catch(error) {
-        handleSubProcessError(error, updatedTransactionDetail, FUNCTION_INDEX, quantity);
+        handleSubProcessError(error, transactionDetail, FUNCTION_INDEX, quantity);
     }
 }
 
@@ -133,7 +129,7 @@ async function cancelOpenOrder(transactionDetail, quantity) {
         } else {
             logger.info(`${transactionDetail.processId} - Order failed to cancel (based on status) at function ${FUNCTION_INDEX + 1}: No open orders`);
             // Check if the order was already executed
-            return checkAndProcessOrder(newTransactionDetail);
+            return checkAndProcessOrder(transactionDetail);
         }
     } catch(error) {
         logger.info(`${transactionDetail.processId} - Order failed to cancel (based on error) at function ${FUNCTION_INDEX + 1}: No open orders`);
@@ -164,12 +160,12 @@ async function checkOrderStatusInLoop(transactionDetail, quantity, start) {
 
         return transaction4(newTransactionDetail, passQty);
     } else { // Partial or empty case
-        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
         const end = performance.now(); // End timer
+
+        logger.info(`${transactionDetail.processId} - Order not fully executed at function ${FUNCTION_INDEX + 1} yet`);
 
         if (end - start < ITERATION_TIME) { // Time is remaining
             logger.info(`${transactionDetail.processId} - Re-checking order status at function ${FUNCTION_INDEX + 1}`);
-            await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
             return checkOrderStatusInLoop(newTransactionDetail, quantity, start);
         }
 

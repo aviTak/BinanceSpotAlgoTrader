@@ -1,23 +1,27 @@
 const axios = require("axios");
+
+const config = require("../config/config");
 const { generateSignature } = require("../utils/helpers");
 const logger = require("../utils/logger");
-const config = require("../config/config");
 
 async function makeApiCall(endpoint, params = {}, method = "GET", authRequired = false ) {
-    let url = `${config.BASE_URL}${endpoint}`, response;
+    let url = `${config.baseUrl}${endpoint}`, response;
 
     try {
         if (authRequired) {
             const timestamp = Date.now(), headers = {};
 
             params.timestamp = timestamp;
-            
+
+                params.selfTradePreventionMode = "NONE"  // Disable STP
+            }
+
             // Generate query string before adding signature
             let queryString = new URLSearchParams(params).toString();
-            const signature = generateSignature(queryString, config.API_SECRET);
+            const signature = generateSignature(queryString, config.apiSecret);
 
             params.signature = signature;
-            headers["X-MBX-APIKEY"] = config.API_KEY;
+            headers["X-MBX-APIKEY"] = config.apiKey;
 
             // Recreate query string with signature
             queryString = new URLSearchParams(params).toString();
