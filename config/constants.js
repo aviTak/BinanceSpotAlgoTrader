@@ -1,20 +1,20 @@
 const SYMBOLS = Object.freeze({ // Specify all coin pairs used (Here order is important for formula calculation)
-        BTCFDUSD: {
-            qtyPrecision: 5,
-            pricePrecision: 2,
+        AIUSDT: {
+            qtyPrecision: 1,
+            pricePrecision: 3,
             minNotional: 5,
-            minQty: 0.00001
+            minQty: 0.1
         },
-        DOGEBTC: {
+        AIBTC: {
+            qtyPrecision: 1,
+            pricePrecision: 8,
+            minNotional: 0.0001,
+            minQty: 0.1
+        },
+        MANABTC: {
             qtyPrecision: 0,
             pricePrecision: 8,
             minNotional: 0.0001,
-            minQty: 1
-        },
-        DOGEFDUSD: {
-            qtyPrecision: 0,
-            pricePrecision: 5,
-            minNotional: 1,
             minQty: 1
         },
         MANAUSDT: {
@@ -26,28 +26,28 @@ const SYMBOLS = Object.freeze({ // Specify all coin pairs used (Here order is im
     }),
     CONDITION_SETS = Object.freeze({
         "A": {
-            inititialQty: 10,
+            inititialQty: 500,
             trades: [
-                { symbol: "BTCFDUSD", side: "BUY" },
-                { symbol: "DOGEBTC", side: "BUY" },
-                { symbol: "DOGEFDUSD", side: "SELL" }
-               // { symbol: "MANAUSDT", side: "SELL" }
+                { symbol: "AIUSDT", side: "BUY" },
+                { symbol: "AIBTC", side: "SELL" },
+                { symbol: "MANABTC", side: "BUY" },
+                { symbol: "MANAUSDT", side: "SELL" }
             ]
         },
         "B": {
-            inititialQty: 10,
+            inititialQty: 500,
             trades: [
-                { symbol: "DOGEFDUSD", side: "BUY" },
-                { symbol: "DOGEBTC", side: "SELL" },
-                { symbol: "BTCFDUSD", side: "SELL" }
+                { symbol: "AIUSDT", side: "SELL" },
+                { symbol: "MANAUSDT", side: "BUY" },
+                { symbol: "MANABTC", side: "SELL" }
             ]
         }
     }),
     TRANSACTION_ATTEMPTS = Object.freeze({ // User-specific
-        TRANSACTION_1: 1,
+        TRANSACTION_1: 2,
         TRANSACTION_2: {
             MARKET: 30,
-            BID_ASK: 30
+            BID_ASK: 2
         }
     }),
     /* DO NOT CHANGE ANYTHING BELOW THIS LINE */

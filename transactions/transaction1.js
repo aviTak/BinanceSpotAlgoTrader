@@ -32,27 +32,17 @@ async function transaction1(
         askArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.ASK_PRICE),
         marketArray = mapPriceResponseToOrder(symbolArray, marketPrices, PRICE_TYPE.MARKET_PRICE);
         /* User-defined formulas */
-        formula1 = (bidArray[2] / (marketArray[1] )/ askArray[0] -1)
-        formula2 =  marketArray[1]*bidArray[0]/askArray[2]-1
-        conditon=parseFloat(0.11/122)
-        //quantity??CONDITION_SETS["A"].inititialQty
-        logger.info(`formula1 = ${formula1}`);
-        logger.info(`formula2 = ${formula2}`);
-        logger.info(`c2 = ${askArray[2]}`);
-        logger.info(`c1 = ${bidArray[0]}`);
-        logger.info(`c3 = ${marketArray[1]}`);
-        logger.info(`c2 = ${askArray[0]}`);
-        logger.info(`c1 = ${bidArray[2]}`);
-        logger.info(`c3 = ${marketArray[1]}`);
-        logger.info(`c3 = ${conditon}`);
+        formula1 = quantity?? CONDITION_SETS["A"].inititialQty + bidArray[0] * (marketArray[0] + askArray[0]) + bidArray[1] * (marketArray[1] + askArray[1]) + bidArray[2] / (marketArray[2] + askArray[2]) + bidArray[3] - marketArray[3] / askArray[3],
+        formula2 = bidArray[0] - marketArray[0] / askArray[0] + bidArray[1] * 2 + marketArray[1] - 1 / askArray[1] + bidArray[2] / (marketArray[2] + askArray[2]) + bidArray[3] - marketArray[3] / askArray[3];
+
     // Check condition
-    if (formula2 < formula1 && formula1>=conditon) { // Set A
+    if (formula1 < 50 && 60 < formula2 < 100) { // Set A
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Condition 1 met; Using Set A`);
         builtTransactionDetail = createTransactionDetail(transactionDetail, "A");
 
         /* Changed initial quantity based on set A */
         quantity = quantity?? CONDITION_SETS["A"].inititialQty;
-    } else if (formula1 < formula2 && formula2>=conditon) { // Set B
+    } else if (formula1 > 10) { // Set B
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Condition 2 is met; Using Set B`);
         builtTransactionDetail = createTransactionDetail(transactionDetail, "B");
 

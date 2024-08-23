@@ -7,7 +7,7 @@ const reverseTransaction1 = require("./reverseTransaction1");
 
 const FUNCTION_INDEX = 1,
     ITERATION_TIME_MARKET = 1000, // Time in ms
-    ITERATION_TIME_BID_ASK = 1000,
+    ITERATION_TIME_BID_ASK = 2000,
     DELAY_STATUS_CHECK = 0;
 
 async function transaction2(
@@ -37,32 +37,18 @@ async function transaction2(
         askArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.ASK_PRICE),
         marketArray = mapPriceResponseToOrder(symbolArray, marketPrices, PRICE_TYPE.MARKET_PRICE),
         /* User-defined formulas */
-        formula1 =bidArray[2]/ parseFloat(transactionDetail.transactions[0].executedPrice) /parseFloat(transactionDetail.transactions[1].marketPrice)-1,
-        formula2 = bidArray[0]*parseFloat(transactionDetail.transactions[1].marketPrice)/parseFloat(transactionDetail.transactions[0].executedPrice) -1,
-        formula3=bidArray[2]/parseFloat(transactionDetail.transactions[0].executedPrice)/bidArray[1]-1,
-        formula4=bidArray[0]*askArray[1]/parseFloat(transactionDetail.transactions[0].executedPrice)-1,
-        formula5=parseFloat(0.1/122),
-        side = transactionDetail.transactions[1].side,
-        condition = isMarketPrice
-            ? (side === SIDE.BUY ? formula1 >=formula5: formula2>=formula5)
-            : (side === SIDE.BUY ? formula3 >=formula5: formula4>=formula5);
-
-        logger.info(`formula1 = ${formula1}`);
-        logger.info(`formula2 = ${formula2}`);
-        logger.info(`formula3 = ${formula3}`);
-        logger.info(`formula4 = ${formula4}`);
-        logger.info(`formula5 = ${formula5}`);
-        logger.info(`c3 = ${parseFloat(transactionDetail.transactions[1].marketPrice)}`);
-        logger.info(`c2 = ${bidArray[2]}`);
-        logger.info(`c1 = ${parseFloat(transactionDetail.transactions[0].executedPrice)}`);
-
-        logger.info(`c3 = ${parseFloat(transactionDetail.transactions[1].marketPrice)}`);
-        logger.info(`c2 =${parseFloat(transactionDetail.transactions[0].executedPrice)}`) ;
-        logger.info(`c1 = ${bidArray[0]}`);
-        logger.info(`c1 = ${bidArray[1]}`);
+        formula1 = parseFloat(transactionDetail.transactions[0].cummulativeQuoteQty) + parseFloat(transactionDetail.transactions[0].executedPrice) + bidArray[0] * (marketArray[0] + askArray[0]) + bidArray[1] * (marketArray[1] + askArray[1]) + bidArray[2] / (marketArray[2] + askArray[2]) + bidArray[3] - marketArray[3] / askArray[3],
+        formula2 = parseFloat(transactionDetail.transactions[1].marketPrice) + bidArray[0] - marketArray[0] / askArray[0] + bidArray[1] * 2 + marketArray[1] - 1 / askArray[1] + bidArray[2] / (marketArray[2] + askArray[2]) + bidArray[3] - marketArray[3] / askArray[3];
+        formula3 = parseFloat(transactionDetail.transactions[0].executedPrice) + bidArray[0] * (marketArray[0] + askArray[0]) + bidArray[1] * (marketArray[1] + askArray[1]) + bidArray[2] / (marketArray[2] + askArray[2]) + bidArray[3] - marketArray[3] / askArray[3],
+        formula4 = parseFloat(transactionDetail.transactions[1].marketPrice) + bidArray[0] - marketArray[0] / askArray[0] + bidArray[1] * 2 + marketArray[1] - 1 / askArray[1] + bidArray[2] / (marketArray[2] + askArray[2]) + bidArray[3] - marketArray[3] / askArray[3],
+        side = transactionDetail.transactions[1].side;
 
     // Check condition
-    if (condition
+    if (
+        (isMarketPrice && side === SIDE.BUY && formula1) ||     // Buying at Market Price
+        (isMarketPrice && side === SIDE.SELL && formula2) ||    // Selling at Market Price
+        (!isMarketPrice && side === SIDE.BUY && formula3) ||    // Buying at Bid/Ask Price
+        (!isMarketPrice && side === SIDE.SELL && formula4)      // Selling at Bid/Ask Price
     ) {
         /* Code will only run for this condition block */
 

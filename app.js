@@ -35,7 +35,7 @@ async function mainLoop() {
             }
 
             /* Uncomment the return statement below to run only a single process */
-            return;
+            // return;
         }
     }
 }
