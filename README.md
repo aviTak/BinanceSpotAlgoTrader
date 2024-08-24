@@ -1,3 +1,7 @@
+## Binance Docs
+1.https://www.binance.com/en/blog/ecosystem/binance-api-spot-trading-with-postman-2584865726555369951
+2. https://docs.binance.us/#introduction
+
 ## Steps to Start the Project
 1. To start your app in stage - npm run start
 2. To start your app in prod - npm run start:prod
