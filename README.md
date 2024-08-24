@@ -14,23 +14,6 @@
 3. ABRACADABRA[CANCEL] - No. of API calls to cancel an order
 4. ABRACADABRA[STATUS] - No. of API calls to check status of an order
 
-## Git Commands
-
-### First Time:-
-
-1. git remote add crypto-trading https://github.com/aviTak/Crypto-Trading.git
-2. git fetch crypto-trading structure-price
-3. git checkout -b release crypto-trading/structure-price
-4. git push origin release
-
-### Consecutives Times:-
-
-1. git pull crypto-trading structure-price
-
-
-## Command to delete log and csv files
-1. Macintosh: rm -rf csv-data log-files
-2. Windows: rd /s /q "csv-data" & rd /s /q "log-files"
 
 ## Useful Links
 
@@ -43,11 +26,12 @@ String to JSON - https://dadroit.com/string-to-json/
 
 ## Function 1
 
-0. Fetch price --> condition === 1 toh code chalega varna retry after 1 second.
-1. Limit GTC, Check status jaldi se jaldi.
-2. Max 1 second mein pura ho gya toh aage badhao.
-3. 1 second paar ho gya toh cancel the order. Jitna hua hai usko aage bhej do. And bacha hua 1 baar aur try karo price dobara fetch karke and condition check karke.
-4. Ask price pe karna hai.
+0. Fetch market price and bid/ask price to check if the condition is true.
+1. If condition === true, place a limit order at bid/ask price and retry status check for next 2 seconds.
+2. Limit GTC, Check status jaldi se jaldi.
+3. Max 1 second mein pura ho gya toh aage badhao.
+4. 1 second paar ho gya toh cancel the order. Jitna hua hai usko aage bhej do. And bacha hua 1 baar aur try karo price dobara fetch karke and condition check karke.
+5. Ask price pe karna hai.
 
 
 ## Function 2 (Iss mein market price bhi nikalna hai bid/ask ke sath)
