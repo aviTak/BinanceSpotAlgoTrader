@@ -1,0 +1,1 @@
+This function is used to reverse the transaction made in the first transaction when the market conditions are not profitable.
