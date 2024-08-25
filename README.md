@@ -12,11 +12,15 @@
 6. To check status of processes - npm run status
 7. To clean log and CSV files on Mac/Linux - npm run clean
 
+---
+
 ## Count number of API calls in Logs
-1. ABRACADABRA[PRICES] - No. of API calls to fetch prices
-2. ABRACADABRA[ORDER] - No. of API calls to place an order
-3. ABRACADABRA[CANCEL] - No. of API calls to cancel an order
-4. ABRACADABRA[STATUS] - No. of API calls to check status of an order
+1. COUNT[PRICES] - No. of API calls to fetch prices
+2. COUNT[ORDER] - No. of API calls to place an order
+3. COUNT[CANCEL] - No. of API calls to cancel an order
+4. COUNT[STATUS] - No. of API calls to check status of an order
+
+---
 
 
 ## Useful Links
@@ -28,42 +32,80 @@ Logs Prettifier - https://beautifier.io/
 
 String to JSON - https://dadroit.com/string-to-json/
 
-## Function 1
+---
 
-0. Fetch market price and bid/ask price to check if the condition is true.
-1. If condition === true, place a limit order at bid/ask price and retry status check for next 2 seconds.
-2. Limit GTC, Check status jaldi se jaldi.
-3. Max 1 second mein pura ho gya toh aage badhao.
-4. 1 second paar ho gya toh cancel the order. Jitna hua hai usko aage bhej do. And bacha hua 1 baar aur try karo price dobara fetch karke and condition check karke.
-5. Ask price pe karna hai.
+## Transaction 1
 
+1. **Fetch Market and Bid/Ask Prices**:
+   - Fetch the current market price and bid/ask prices for the relevant cryptocurrency pairs.
+   - The purpose is to check if the condition for profitability is met.
 
-## Function 2 (Iss mein market price bhi nikalna hai bid/ask ke sath)
+2. **Condition Check**:
+   - If the calculated condition is true, place a limit order at the bid or ask price.
+   - Immediately start checking the order status for the next 2 seconds.
 
-1. Condition 1 !== 1 --> Reverse at limit bid price. Wait for 1 second. Infinite attempts.
-2. Condition 1 === 1 && Condition 2 === 1:-
-    i. Limit GTC at Market Price and wait for 1 second (Same as function 1). Jo nahi hua (sum or all) voh next step pe jayega. Jo/jitna ho gya uss 1 second mein (or before) usse function 3 pe bhej deinge.
-    ii. Limit GTC at bid/ask. Same as function 1 with 2 attempts. Otherwise reverse.
-3. Varna reverse kar deinge.
+3. **Order Placement and Status Check**:
+   - Place a **Limit GTC (Good 'Til Canceled)** order.
+   - Check the status as quickly as possible.
 
+4. **Order Execution**:
+   - If the order is fully executed within 1 second, proceed to the next transaction.
+   - If the order isn't filled within 1 second, cancel the order. Forward any partially filled quantity to the next step.
+   - Re-attempt the remaining quantity by fetching the price again, checking the condition, and placing the order if appropriate.
 
-## Function 3, 4 (Condition check nahi hogi; Reverse mein bhi nahi hogi)
+5. **Ask Price Execution**:
+   - Ensure that the limit order is placed at the ask price during this transaction.
 
-1. Limit GTC at existing bid/ask price. Wait for 1 second.
-2. Attempts infinite with new bid and ask price of coin three. Wait for 1 second.
-    1. Complete/Partial - Next function for executed.
-        Remaining quantity --> Same as nothing got filled (sum or all)
-    2. Nothing - Wait for 1 second.
+---
 
-## FUNCTION R
+## Transaction 2
 
-1. Attempts infinite with new bid and ask price of coin three. Wait for 1 second.
+1. **Initial Setup and Price Fetching**:
+   - Fetch both the market price and bid/ask prices, similar to transaction 1.
 
-## STEP 0
+2. **Condition Handling**:
+   - **Condition 1 is False**:
+     - If the primary condition is not met, reverse the trade at the limit bid price. Retry infinitely with a 1-second wait between each attempt.
+   - **Condition 1 is True and Condition 2 is True**:
+     - Place a **Limit GTC** order at the market price and wait for 1 second.
+     - Any quantity not executed in 1 second moves to the next step, while executed quantity proceeds to transaction 3.
+     - Place a **Limit GTC** order at the bid/ask price and follow the same procedure as in transaction 1, with up to 2 attempts. If unsuccessful, reverse the transaction.
 
-0. Account balance check karna hai.
-1. Jab process start hoga toh function 1 price fetch karega and condtion calculate hogi aur change hogi. Coins beech mein change nahi kareinge yahin set kareinge. Same with buying pattern.
-2. Condition ka kaam aage sirf reverse karne mein kaam aaeyga.
+3. **Reverse Handling**:
+   - If neither condition is met, reverse the transaction using the defined logic.
+
+---
+
+## Transaction 3 and Transaction 4
+
+1. **Order Placement**:
+   - Place a **Limit GTC** order at the current bid/ask price.
+   - Wait for 1 second for the order to fill.
+
+2. **Handling Multiple Attempts**:
+   - Continue attempting the order indefinitely with new bid and ask prices for the third cryptocurrency pair.
+   - Wait for 1 second between each attempt.
+
+3. **Order Execution Handling**:
+   - If the order is partially or fully executed, proceed with the executed quantity to the next transaction.
+   - If nothing is filled, wait for 1 second and reattempt.
+
+4. **Transaction 4 and ReverseTransaction1**:
+   - **Transaction 4** uses the same logic as described above for placing and monitoring orders.
+   - **ReverseTransaction1** specifically reverses the order made in transaction 1, following the same logic and conditions as in transaction 4.
+
+5. **Final Checks**:
+   - Each transaction continuously monitors the order status. If the order is fully executed, the transaction is completed.
+   - If the order isn't fully filled within the allowed time, it will be canceled, and the remaining quantity will be reattempted.
+
+6. **Handling Partial Executions**:
+   - If an order is only partially filled, the executed portion proceeds to the next transaction.
+   - The remaining quantity is reattempted under the same conditions.
+
+7. **Infinite Attempts**:
+   - For transactions 3, 4, and ReverseTransaction1, attempts to execute the order continue indefinitely until the order is filled.
+
+---
 
 
 ## Block A - Agar 90% ho jaata hai toh restart the complete process (500 ya minimum balance lga do)

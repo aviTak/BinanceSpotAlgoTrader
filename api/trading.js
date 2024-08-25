@@ -12,7 +12,7 @@ async function fetchMarketPrices() {
         logger.info(`Request made to fetch new market prices of assets - ${JSON.stringify(SYMBOLS, null, 2)}}`);
 
         /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[PRICES] - New order placed API hit (POST)`);
+        logger.info(`COUNT[PRICES] - New order placed API hit (POST)`);
         const prices = await generalRequestLimiter.schedule({ weight: 2 }, () =>
             rawRequestLimiter.schedule({ weight: 2 }, () =>
                 makeApiCall(config.MARKET_PRICES_PATH, { symbols: symbolsParam })
@@ -34,7 +34,7 @@ async function fetchBidAskPrices() {
         logger.info(`Request made to fetch new bid and ask prices of assets - ${JSON.stringify(SYMBOLS, null, 2)}}`);
 
         /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[PRICES] - New order placed API hit (POST)`);
+        logger.info(`COUNT[PRICES] - New order placed API hit (POST)`);
         const prices = await generalRequestLimiter.schedule({ weight: 2 }, () =>
             rawRequestLimiter.schedule({ weight: 2 }, () =>
                 makeApiCall(config.BID_ASK_PRICES_PATH, { symbols: symbolsParam })
@@ -54,7 +54,7 @@ async function checkOrderStatus(params) {
         logger.info(`Request made to check status for symbol - ${params.symbol}, orderId - ${params.orderId}`);
 
         /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[STATUS] - New order placed API hit (POST)`);
+        logger.info(`COUNT[STATUS] - New order placed API hit (POST)`);
         const response = await generalRequestLimiter.schedule({ weight: 2 }, () =>
             rawRequestLimiter.schedule({ weight: 2 }, () =>
                 makeApiCall(config.ORDER_PATH, params, "GET", true)
@@ -73,7 +73,7 @@ async function cancelOrder(params) {
         logger.info(`Request made to cancel for symbol - ${params.symbol}, orderId - ${params.orderId}`);
 
         /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[CANCEL] - New order placed API hit (POST)`);
+        logger.info(`COUNT[CANCEL] - New order placed API hit (POST)`);
         const response = await generalRequestLimiter.schedule({ weight: 1 }, () =>
             rawRequestLimiter.schedule({ weight: 1 }, () =>
                 makeApiCall(config.ORDER_PATH, params, "DELETE", true)
@@ -139,7 +139,7 @@ async function executeOrder({
         logger.info(`Params for order to be executed: ${JSON.stringify(params, null, 2)}`);
 
         /* To keep a log of the no. of order requests made */
-        logger.info(`ABRACADABRA[ORDER] - New order placed API hit (POST)`);
+        logger.info(`COUNT[ORDER] - New order placed API hit (POST)`);
 
         const response = await generalRequestLimiter.schedule({ weight: 1 }, () =>
             rawRequestLimiter.schedule({ weight: 1 }, () =>

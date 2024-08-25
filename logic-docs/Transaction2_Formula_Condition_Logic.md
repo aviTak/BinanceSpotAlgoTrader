@@ -1,4 +1,4 @@
-Let's break down the logic, reasoning, and formulas used in `transaction2` in the same detailed manner as before. This will help clarify why certain decisions are made, why certain conditions are checked, and how the trading logic operates with respect to the specific symbols and trading strategies.
+Let's break down the logic, reasoning, and formulas used in `transaction2`. This will help clarify why certain decisions are made, why certain conditions are checked, and how the trading logic operates with respect to the specific symbols and trading strategies.
 
 ### **Transaction 2 Breakdown**
 
