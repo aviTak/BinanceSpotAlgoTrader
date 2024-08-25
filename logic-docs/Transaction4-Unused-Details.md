@@ -1,1 +1,0 @@
-Since we only use three coin pairs, transaction4 is kept as an option function.

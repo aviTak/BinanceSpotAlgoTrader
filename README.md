@@ -1,172 +1,187 @@
-## Binance Docs
-1. [Setting up Testnet and Postman](https://www.binance.com/en/blog/ecosystem/binance-api-spot-trading-with-postman-2584865726555369951)
-2. [Binance Spot API Documentation](https://docs.binance.us/#introduction)
+```markdown
+# High-Frequency Trading (HFT) Using Binance Spot API
+
+## Project Overview
+This project is a High-Frequency Trading (HFT) system built using the Binance Spot API. The system is designed to execute rapid and frequent trades, leveraging price discrepancies across multiple cryptocurrency pairs to generate profits. The project includes various transactions that handle the buying and selling of assets, with logic implemented to ensure efficient and profitable trading.
+
+## Binance Documentation
+To get started, it's important to familiarize yourself with Binance's API and testnet environment:
+
+1. **Setting up Testnet and Postman**: [Binance Blog Post](https://www.binance.com/en/blog/ecosystem/binance-api-spot-trading-with-postman-2584865726555369951)
+2. **Binance Spot API Documentation**: [Binance Spot API Docs](https://docs.binance.us/#introduction)
 
 ## Steps to Start the Project
-1. To start your app in stage - npm run start
-2. To start your app in prod - npm run start:prod
-3. To stop the stage - npm run stop
-4. To view logs - npm run logs
-5. To view error logs - npm run logs:error
-5. To delete process - npm run delete
-6. To check status of processes - npm run status
-7. To clean log and CSV files on Mac/Linux - npm run clean
+Follow these steps to manage and monitor the HFT system:
 
----
+1. **Start the Application in Stage Environment**:
+   ```bash
+   npm run start
+   ```
+2. **Start the Application in Production Environment**:
+   ```bash
+   npm run start:prod
+   ```
+3. **Stop the Stage Environment**:
+   ```bash
+   npm run stop
+   ```
+4. **View Application Logs**:
+   ```bash
+   npm run logs
+   ```
+5. **View Error Logs**:
+   ```bash
+   npm run logs:error
+   ```
+6. **Delete a Running Process**:
+   ```bash
+   npm run delete
+   ```
+7. **Check the Status of Processes**:
+   ```bash
+   npm run status
+   ```
+8. **Clean Log and CSV Files (Mac/Linux)**:
+   ```bash
+   npm run clean
+   ```
 
-## Count number of API calls in Logs
-1. COUNT[PRICES] - No. of API calls to fetch prices
-2. COUNT[ORDER] - No. of API calls to place an order
-3. COUNT[CANCEL] - No. of API calls to cancel an order
-4. COUNT[STATUS] - No. of API calls to check status of an order
+## Counting API Calls in Logs
+The system tracks the number of API calls made during operation. You can use the following log keys to understand the system's API usage:
 
----
+1. **COUNT[PRICES]** - Number of API calls made to fetch prices.
+2. **COUNT[ORDER]** - Number of API calls made to place an order.
+3. **COUNT[CANCEL]** - Number of API calls made to cancel an order.
+4. **COUNT[STATUS]** - Number of API calls made to check the status of an order.
 
+## Useful Tools and Links
+Here are some tools that might be helpful during development and monitoring:
 
-## Useful Links
+- **Merge CSV files online**: [merge-csv.com](https://merge-csv.com/)
+- **Logs Prettifier**:
+  - [beautifier.io](https://beautifier.io/)
+  - [codebeautify.org/jsviewer](https://codebeautify.org/jsviewer)
+- **String to JSON Converter**: [dadroit.com](https://dadroit.com/string-to-json/)
 
-Merge CSV files online - https://merge-csv.com/
-
-Logs Prettifier - https://beautifier.io/
-                https://codebeautify.org/jsviewer
-
-String to JSON - https://dadroit.com/string-to-json/
-
----
-
-## Transaction 1
-
+## Transaction Processes
+### Transaction 1
 1. **Fetch Market and Bid/Ask Prices**:
-   - Fetch the current market price and bid/ask prices for the relevant cryptocurrency pairs.
-   - The purpose is to check if the condition for profitability is met.
+   - The system fetches the current market price and bid/ask prices for relevant cryptocurrency pairs to assess profitability conditions.
 
 2. **Condition Check**:
-   - If the calculated condition is true, place a limit order at the bid or ask price.
-   - Immediately start checking the order status for the next 2 seconds.
+   - If the calculated condition for profitability is met, a limit order is placed at the bid or ask price. The system then immediately checks the order status for the next 2 seconds.
 
 3. **Order Placement and Status Check**:
    - Place a **Limit GTC (Good 'Til Canceled)** order.
-   - Check the status as quickly as possible.
+   - The system checks the order status as quickly as possible.
 
 4. **Order Execution**:
-   - If the order is fully executed within 1 second, proceed to the next transaction.
-   - If the order isn't filled within 1 second, cancel the order. Forward any partially filled quantity to the next step.
-   - Re-attempt the remaining quantity by fetching the price again, checking the condition, and placing the order if appropriate.
+   - If the order is fully executed within 1 second, the process moves to the next transaction.
+   - If the order is not filled within 1 second, it is canceled. The partially filled quantity is forwarded to the next step, and the system reattempts the remaining quantity after fetching new prices.
 
 5. **Ask Price Execution**:
-   - Ensure that the limit order is placed at the ask price during this transaction.
+   - The limit order is placed specifically at the ask price during this transaction.
 
----
-
-## Transaction 2
-
+### Transaction 2
 1. **Initial Setup and Price Fetching**:
-   - Fetch both the market price and bid/ask prices, similar to transaction 1.
+   - The system fetches both the market price and bid/ask prices, similar to transaction 1.
 
 2. **Condition Handling**:
    - **Condition 1 is False**:
-     - If the primary condition is not met, reverse the trade at the limit bid price. Retry infinitely with a 1-second wait between each attempt.
+     - If the primary condition is not met, the trade is reversed at the limit bid price. This reversal is attempted infinitely, with a 1-second wait between each attempt.
    - **Condition 1 is True and Condition 2 is True**:
-     - Place a **Limit GTC** order at the market price and wait for 1 second.
-     - Any quantity not executed in 1 second moves to the next step, while executed quantity proceeds to transaction 3.
-     - Place a **Limit GTC** order at the bid/ask price and follow the same procedure as in transaction 1, with up to 2 attempts. If unsuccessful, reverse the transaction.
+     - A **Limit GTC** order is placed at the market price and waits for 1 second. Any quantity not executed in 1 second moves to the next step, while the executed quantity proceeds to transaction 3.
+     - If needed, a **Limit GTC** order is placed at the bid/ask price with up to 2 attempts. If unsuccessful, the trade is reversed.
 
 3. **Reverse Handling**:
-   - If neither condition is met, reverse the transaction using the defined logic.
+   - If neither condition is met, the transaction is reversed using the predefined logic.
 
----
-
-## Transaction 3 and Transaction 4
-
+### Transaction 3 and Transaction 4
 1. **Order Placement**:
-   - Place a **Limit GTC** order at the current bid/ask price.
-   - Wait for 1 second for the order to fill.
+   - A **Limit GTC** order is placed at the current bid/ask price. The system waits for 1 second for the order to fill.
 
 2. **Handling Multiple Attempts**:
-   - Continue attempting the order indefinitely with new bid and ask prices for the third cryptocurrency pair.
-   - Wait for 1 second between each attempt.
+   - The system will continue to attempt the order indefinitely with new bid and ask prices for the third cryptocurrency pair, with a 1-second wait between each attempt.
 
 3. **Order Execution Handling**:
-   - If the order is partially or fully executed, proceed with the executed quantity to the next transaction.
-   - If nothing is filled, wait for 1 second and reattempt.
+   - If the order is partially or fully executed, the executed quantity is passed to the next transaction. If nothing is filled, the system waits for 1 second and reattempts.
 
 4. **Transaction 4 and ReverseTransaction1**:
    - **Transaction 4** uses the same logic as described above for placing and monitoring orders.
    - **ReverseTransaction1** specifically reverses the order made in transaction 1, following the same logic and conditions as in transaction 4.
 
 5. **Final Checks**:
-   - Each transaction continuously monitors the order status. If the order is fully executed, the transaction is completed.
-   - If the order isn't fully filled within the allowed time, it will be canceled, and the remaining quantity will be reattempted.
+   - Each transaction continuously monitors the order status. If the order is fully executed, the transaction is completed. If not, the order is canceled, and the remaining quantity is reattempted.
 
 6. **Handling Partial Executions**:
-   - If an order is only partially filled, the executed portion proceeds to the next transaction.
-   - The remaining quantity is reattempted under the same conditions.
+   - If an order is only partially filled, the executed portion proceeds to the next transaction. The remaining quantity is reattempted under the same conditions.
 
 7. **Infinite Attempts**:
-   - For transactions 3, 4, and ReverseTransaction1, attempts to execute the order continue indefinitely until the order is filled.
+   - For transactions 3, 4, and ReverseTransaction1, the system attempts to execute the order indefinitely until it is filled.
 
----
+## Future Considerations for the Process
 
+### Block A - Restart the Process When 90% of the Target is Achieved
+1. **Scenario 1**: If the initial amount is 500 and it drops to 440, and the process completes, the entire process should be restarted.
+2. **Scenario 2**: If the amount reaches 450 at any point, the process should be restarted.
+3. **Key Rule**: Once 90% of the target amount is reached, there’s no need to run the process again just for the remaining 10%.
 
-## Block A - Agar 90% ho jaata hai toh restart the complete process (500 ya minimum balance lga do)
+*Additionally*:
+- **Email Alerts**: Use Nodemailer to send alerts if there are consecutive losses, ensuring that you're notified promptly when the process isn't performing as expected.
 
-1. 500 --> 440 aa gya --> Process bhi complete ho gya --> Restart the process.
-2. 500 --> 450 jab bhi ho jayega --> Restart the process.
-3. 90% amount ho gayi hai toh dobara fir se 10% ke liye nahi chalna hai.
+### Three Ways to Restart the Process:
+1. **After Process Completion**:
+   - The next process will only start once the current process is fully completed. (This is the current behavior.)
 
+2. **Block A**:
+   - Restart the process based on the criteria outlined in Block A (e.g., when 90% of the target is achieved).
 
-*Email bhejna hoga --> Use Nodemailer*
+3. **Continuous Restart**:
+   - The process will restart every second, regardless of whether the previous process has finished or not. This ensures that the process is continually running.
 
+## Explanation for `executedQty` vs `cummulativeQuoteQty` in Buy and Sell Orders on Binance API
 
-## Three Ways to Restart the Process:-
+When working with Binance's API for trading, it's crucial to understand the difference between `executedQty` and `cummulativeQuoteQty`, especially in strategies involving continuous buying and selling of cryptocurrency pairs.
 
-1. Jab eik khatam hoga pura process toh hi agla process start hoga.
-2. Block A.
-3. We will restart the process every second (kuch ho na ho).
+### Key Concepts:
 
-## Explanation for executedQty vs cummulativeQuoteQty for buy and sell orders
+- **`executedQty`**: The actual quantity of the base asset that was bought or sold in a trade.
+- **`cummulativeQuoteQty`**: The total quantity of the quote asset that was spent or received in the trade.
 
-**Buy hai toh pehla vala bhejo (executedQty) aur sell hai toh dusra vala bhejo**
+### When to Use `executedQty` vs `cummulativeQuoteQty`:
 
-ETHUSDT, ETHBTC || QTUMETH
+1. **For Buy Orders**:
+   - **Use `executedQty`**: This represents how much of the base asset was bought.
+   - **Example**:
+     - Buying 0.1 ETH using 10 USDT at 100 USDT/ETH results in:
+       - **`executedQty`** = 0.1 ETH
+       - **`cummulativeQuoteQty`** = 10 USDT
 
-[
-    {
-        symbol: "ETHUSDT",
-        price: "100",
-        side: "BUY"
-    },
-    {
-        symbol: "ETHBTC",
-        price: "0.5"
-        side: "SELL"
-    },
-    {
-        symbol: "QTUETH",
-        price: "2"
-        side: "BUY"
-    }
-]
+2. **For Sell Orders**:
+   - **Use `cummulativeQuoteQty`**: This represents how much of the quote asset was received from selling the base asset.
+   - **Example**:
+     - Selling 0.1 ETH to receive 0.05 BTC at 0.5 BTC/ETH results in:
+       - **`executedQty`** = 0.1 ETH
+       - **`cummulativeQuoteQty`** = 0.05 BTC
 
+### Example Scenario: Continuous Buy and Sell of Pairs
+1. **Step 1: Buying ETH with USDT**:
+   - **`ETHUSDT`** pair: Buy 0.1 ETH using 10 USDT.
+   - **Quantity Calculation**: `executedQty` = 0.1 ETH.
 
-Step 1 BUY --> quantity nikalni padegi
-10 USDT se 0.1 ETH buy kiya
-quantity = 10 / price
+2. **Step 2: Selling ETH for BTC**:
+   - **`ETHBTC`** pair: Sell the
 
-Step 2 Case 1 SELL --> quantity same hai
-0.1 ETH sell kar dena hai uss se 0.05 BTC mila
-quantity = 0.1
+ 0.1 ETH to receive BTC.
+   - **Quantity Calculation**: `executedQty` = 0.1 ETH; `cummulativeQuoteQty` = 0.05 BTC.
 
-Step 2 Case 2 BUY --> quantity nikalni padegi
-0.1 ETH se 0.05 QTU liya
-quantity = 0.1 / price
+3. **Step 3: Buying QTUM with ETH**:
+   - **`QTUMETH`** pair: Buy QTUM using 0.1 ETH.
+   - **Quantity Calculation**: `executedQty` = 0.05 QTUM.
 
-## Formula Format for Conditions
+### Summary:
+- **For Buy Orders**: Use `executedQty` to determine the amount of the base currency bought (e.g., ETH in `ETHUSDT`).
+- **For Sell Orders**: Use `cummulativeQuoteQty` to determine the amount of the quote currency received (e.g., BTC in `ETHBTC`).
 
-(mp1+mp2+mp3+mp4)/(ap1*bp1+ap2*bp2+ap3*bp1+ap1*bp1)
-
-0-10 --> [AIUSDT|BUY, AI......]
-11-20 --> [BTCUSDT,..]
-21-30 --> [BTCUSDT,...]
-
-**Eik hi coin pair 2 alag-alag (kahin buy-kahin sell) position/function pe ho sakta hai (in that case there are 3 coin pairs instead of 4)**
+Understanding when to use `executedQty` vs `cummulativeQuoteQty` is essential for correctly tracking the assets you are trading, especially in strategies involving continuous buying and selling of cryptocurrency pairs.
+```
