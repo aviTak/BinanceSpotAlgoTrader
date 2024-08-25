@@ -184,4 +184,4 @@ When working with Binance's API for trading, it's crucial to understand the diff
 - **For Sell Orders**: Use `cummulativeQuoteQty` to determine the amount of the quote currency received (e.g., BTC in `ETHBTC`).
 
 Understanding when to use `executedQty` vs `cummulativeQuoteQty` is essential for correctly tracking the assets you are trading, especially in strategies involving continuous buying and selling of cryptocurrency pairs.
-```
+
