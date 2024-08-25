@@ -1,4 +1,4 @@
-##Feature: Transaction 3 – Conditional Limit Order for DOGEFDUSD (Sell)
+## Feature: Transaction 3 – Conditional Limit Order for DOGEFDUSD (Sell)
 
 1. Why:
 The goal of this feature is to avoid losses during the third transaction (DOGEFDUSD, SELL). Given the executed prices from the first two transactions, this feature ensures that the sell order is placed at a price that either avoids a loss or captures a potential profit. By placing a conditional limit order, the system dynamically adjusts the sell price based on market conditions, thereby protecting the trader’s position.
