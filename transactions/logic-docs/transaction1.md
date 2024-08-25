@@ -1,6 +1,6 @@
 ### **Understanding the Logic and Reasoning Behind the Conditions and Set Selection**
 
-Let's break down the logic of the code snippet you provided, focusing on why the conditions are set the way they are, why certain sets are chosen, and what happens if the conditions are not met.
+Let's break down the logic of the code, focusing on why the conditions are set the way they are, why certain sets are chosen, and what happens if the conditions are not met.
 
 ### **Context Overview**
 In this code, the trading logic is determining whether to use "Set A" or "Set B" based on the calculated values from `formula1` and `formula2`, compared against a `condition`. Each set represents a sequence of trades involving specific cryptocurrency pairs, and choosing the correct set is crucial for maximizing profitability or minimizing risk.
