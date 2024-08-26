@@ -295,6 +295,17 @@ We welcome contributions from the community! Here’s how you can get started:
 
 ---
 
+## How You Can Help
+
+If you find this project useful, you can support it by:
+
+- **Starring the repository** on GitHub.
+- **Sharing** the project on social media or with colleagues.
+- **Writing about it** on blogs or in forums.
+- **Contributing** to the code or documentation.
+
+---
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
