@@ -3,8 +3,6 @@
 ## Project Overview
 This project is a High-Frequency Trading (HFT) system built using the Binance Spot API. The system is designed to execute rapid and frequent trades, leveraging price discrepancies across multiple cryptocurrency pairs to generate profits. The project includes various transactions that handle the buying and selling of assets, with logic implemented to ensure efficient and profitable trading.
 
-[**GitHub Repository**](https://github.com/your-username/BinanceSpotAlgoTrader)
-
 ## Binance Documentation
 To get started, it's important to familiarize yourself with Binance's API and testnet environment:
 
