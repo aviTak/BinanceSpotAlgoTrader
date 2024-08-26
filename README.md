@@ -46,6 +46,53 @@ Follow these steps to manage and monitor the HFT system:
    npm run clean
    ```
 
+---
+
+### `.env` File Format
+
+Your project requires environment variables to configure the API keys and secrets for different environments. These variables should be stored in a `.env` file located in the root directory of your project.
+
+Here’s an example of how your `.env` file should look:
+
+```plaintext
+# Staging Environment Variables
+API_KEY_STAGE=BsqzqZH5xaWHuxaTFR7O5sQxXhrnyO26ThGgcdrTHWiK0m9upREB9JuiJZSqDE3K
+API_SECRET_STAGE=kYbAPQRNmOkDFTGgmkRKzkkM9RvGxJwPniI9EKGaKbWeBeoklSkuAtdLQq1xjG72
+
+# Production Environment Variables
+API_KEY_PROD=your-api-key
+API_SECRET_PROD=your-api-secret
+```
+
+### Instructions to Create the `.env` File
+
+1. **Create a `.env` file** in the root directory of your project if it doesn’t already exist.
+
+2. **Copy the sample environment variables** into your `.env` file:
+
+   ```plaintext
+   # Staging Environment Variables
+   API_KEY_STAGE=your-staging-api-key
+   API_SECRET_STAGE=your-staging-api-secret
+
+   # Production Environment Variables
+   API_KEY_PROD=your-production-api-key
+   API_SECRET_PROD=your-production-api-secret
+   ```
+
+3. **Replace the placeholder values** (`your-staging-api-key`, `your-staging-api-secret`, `your-production-api-key`, `your-production-api-secret`) with your actual API keys and secrets.
+
+### Important Notes
+
+- **Never commit your `.env` file to version control** (e.g., GitHub) as it contains sensitive information such as API keys and secrets. Ensure that your `.gitignore` file includes `.env` to prevent accidental commits.
+- **Example `.gitignore` entry**:
+  ```plaintext
+  # Ignore environment variables
+  .env
+  ```
+
+---
+
 ## Counting API Calls in Logs
 The system tracks the number of API calls made during operation. You can use the following log keys to understand the system's API usage:
 
