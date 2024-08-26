@@ -1,4 +1,3 @@
-```markdown
 # High-Frequency Trading (HFT) Using Binance Spot API
 
 ## Project Overview
