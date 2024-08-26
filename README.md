@@ -123,8 +123,8 @@ After running the system, a `report.csv` file is generated. This file contains d
 - **Pair**: The cryptocurrency pair traded (e.g., BTC/USDT).
 - **Order Type**: Whether the trade was a buy or sell.
 - **Price**: The price at which the trade was executed.
-- **Quantity**: The amount of cryptocurrency traded.
-- **Status**: The outcome of the trade (e.g., Completed, Partially Filled).
+- **Quantity**: The amount of cryptocurrency traded (both executed and cumulative)
+- **Status**: The outcome of the trade (e.g., Completed, Reversed, Undervalued, Error).
 
 Use this file to analyze your trades and refine your strategy for better performance.
 
