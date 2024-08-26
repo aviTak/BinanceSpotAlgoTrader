@@ -3,6 +3,8 @@
 ## Project Overview
 This project is a High-Frequency Trading (HFT) system built using the Binance Spot API. The system is designed to execute rapid and frequent trades, leveraging price discrepancies across multiple cryptocurrency pairs to generate profits. The project includes various transactions that handle the buying and selling of assets, with logic implemented to ensure efficient and profitable trading.
 
+[**GitHub Repository**](https://github.com/your-username/BinanceSpotAlgoTrader)
+
 ## Binance Documentation
 To get started, it's important to familiarize yourself with Binance's API and testnet environment:
 
@@ -100,6 +102,36 @@ The system tracks the number of API calls made during operation. You can use the
 3. **COUNT[CANCEL]** - Number of API calls made to cancel an order.
 4. **COUNT[STATUS]** - Number of API calls made to check the status of an order.
 
+---
+
+## Logging and Reports
+
+### Log Files
+The system generates log files to help you monitor and debug trading activities:
+
+- **Application Logs**: Tracks general system activities.
+  ```bash
+  npm run logs
+  ```
+- **Error Logs**: Captures errors encountered during execution.
+  ```bash
+  npm run logs:error
+  ```
+
+### `report.csv` File
+After running the system, a `report.csv` file is generated. This file contains detailed records of all trades, including:
+
+- **Timestamp**: The exact time when the trade was executed.
+- **Pair**: The cryptocurrency pair traded (e.g., BTC/USDT).
+- **Order Type**: Whether the trade was a buy or sell.
+- **Price**: The price at which the trade was executed.
+- **Quantity**: The amount of cryptocurrency traded.
+- **Status**: The outcome of the trade (e.g., Completed, Partially Filled).
+
+Use this file to analyze your trades and refine your strategy for better performance.
+
+---
+
 ## Useful Tools and Links
 Here are some tools that might be helpful during development and monitoring:
 
@@ -109,7 +141,10 @@ Here are some tools that might be helpful during development and monitoring:
   - [codebeautify.org/jsviewer](https://codebeautify.org/jsviewer)
 - **String to JSON Converter**: [dadroit.com](https://dadroit.com/string-to-json/)
 
+---
+
 ## Transaction Processes
+
 ### Transaction 1
 1. **Fetch Market and Bid/Ask Prices**:
    - The system fetches the current market price and bid/ask prices for relevant cryptocurrency pairs to assess profitability conditions.
@@ -165,9 +200,13 @@ Here are some tools that might be helpful during development and monitoring:
 7. **Infinite Attempts**:
    - For transactions 3, 4, and ReverseTransaction1, the system attempts to execute the order indefinitely until it is filled.
 
+---
+
 ## Future Considerations for the Process
 
-### Block A - Restart the Process When 90% of the Target is Achieved
+### Block A - Restart the Process When 90% of
+
+ the Target is Achieved
 1. **Scenario 1**: If the initial amount is 500 and it drops to 440, and the process completes, the entire process should be restarted.
 2. **Scenario 2**: If the amount reaches 450 at any point, the process should be restarted.
 3. **Key Rule**: Once 90% of the target amount is reached, there’s no need to run the process again just for the remaining 10%.
@@ -184,6 +223,8 @@ Here are some tools that might be helpful during development and monitoring:
 
 3. **Continuous Restart**:
    - The process will restart every second, regardless of whether the previous process has finished or not. This ensures that the process is continually running.
+
+---
 
 ## Explanation for `executedQty` vs `cummulativeQuoteQty` in Buy and Sell Orders on Binance API
 
@@ -216,8 +257,8 @@ When working with Binance's API for trading, it's crucial to understand the diff
    - **Quantity Calculation**: `executedQty` = 0.1 ETH.
 
 2. **Step 2: Selling ETH for BTC**:
-   - **`ETHBTC`** pair:bSell the 0.1 ETH to receive BTC.
-    - **Quantity Calculation**: `executedQty` = 0.1 ETH; `cummulativeQuoteQty` = 0.05 BTC.
+   - **`ETHBTC`** pair: Sell the 0.1 ETH to receive BTC.
+   - **Quantity Calculation**: `executedQty` = 0.1 ETH; `cummulativeQuoteQty` = 0.05 BTC.
 
 3. **Step 3: Buying QTUM with ETH**:
    - **`QTUMETH`** pair: Buy QTUM using 0.1 ETH.
