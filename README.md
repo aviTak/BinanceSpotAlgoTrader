@@ -1,5 +1,3 @@
-Here’s how you can add a "How to Contribute" section to your README, guiding potential contributors on how to technically contribute to your project:
-
 ```markdown
 # High-Frequency Trading (HFT) Using Binance Spot API
 
