@@ -185,3 +185,8 @@ When working with Binance's API for trading, it's crucial to understand the diff
 
 Understanding when to use `executedQty` vs `cummulativeQuoteQty` is essential for correctly tracking the assets you are trading, especially in strategies involving continuous buying and selling of cryptocurrency pairs.
 
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
