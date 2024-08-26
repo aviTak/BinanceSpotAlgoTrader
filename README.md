@@ -46,6 +46,53 @@ Follow these steps to manage and monitor the HFT system:
    npm run clean
    ```
 
+---
+
+### `.env` File Format
+
+Your project requires environment variables to configure the API keys and secrets for different environments. These variables should be stored in a `.env` file located in the root directory of your project.
+
+Here’s an example of how your `.env` file should look:
+
+```plaintext
+# Staging Environment Variables
+API_KEY_STAGE=BsqzqZH5xaWHuxaTFR7O5sQxXhrnyO26ThGgcdrTHWiK0m9upREB9JuiJZSqDE3K
+API_SECRET_STAGE=kYbAPQRNmOkDFTGgmkRKzkkM9RvGxJwPniI9EKGaKbWeBeoklSkuAtdLQq1xjG72
+
+# Production Environment Variables
+API_KEY_PROD=your-api-key
+API_SECRET_PROD=your-api-secret
+```
+
+### Instructions to Create the `.env` File
+
+1. **Create a `.env` file** in the root directory of your project if it doesn’t already exist.
+
+2. **Copy the sample environment variables** into your `.env` file:
+
+   ```plaintext
+   # Staging Environment Variables
+   API_KEY_STAGE=your-staging-api-key
+   API_SECRET_STAGE=your-staging-api-secret
+
+   # Production Environment Variables
+   API_KEY_PROD=your-production-api-key
+   API_SECRET_PROD=your-production-api-secret
+   ```
+
+3. **Replace the placeholder values** (`your-staging-api-key`, `your-staging-api-secret`, `your-production-api-key`, `your-production-api-secret`) with your actual API keys and secrets.
+
+### Important Notes
+
+- **Never commit your `.env` file to version control** (e.g., GitHub) as it contains sensitive information such as API keys and secrets. Ensure that your `.gitignore` file includes `.env` to prevent accidental commits.
+- **Example `.gitignore` entry**:
+  ```plaintext
+  # Ignore environment variables
+  .env
+  ```
+
+---
+
 ## Counting API Calls in Logs
 The system tracks the number of API calls made during operation. You can use the following log keys to understand the system's API usage:
 
@@ -76,8 +123,8 @@ Here are some tools that might be helpful during development and monitoring:
    - The system checks the order status as quickly as possible.
 
 4. **Order Execution**:
-   - If the order is fully executed within 1 second, the process moves to the next transaction.
-   - If the order is not filled within 1 second, it is canceled. The partially filled quantity is forwarded to the next step, and the system reattempts the remaining quantity after fetching new prices.
+   - If the order is fully executed within 2 seconds, the process moves to the next transaction.
+   - If the order is not filled within 2 seconds, it is canceled. The partially filled quantity is forwarded to the next step, and the system reattempts the remaining quantity after fetching new prices.
 
 5. **Ask Price Execution**:
    - The limit order is placed specifically at the ask price during this transaction.
@@ -169,11 +216,9 @@ When working with Binance's API for trading, it's crucial to understand the diff
    - **`ETHUSDT`** pair: Buy 0.1 ETH using 10 USDT.
    - **Quantity Calculation**: `executedQty` = 0.1 ETH.
 
-2. **Step
-
-2: Selling ETH for BTC**:
-   - **`ETHBTC`** pair: Sell the 0.1 ETH to receive BTC.
-   - **Quantity Calculation**: `executedQty` = 0.1 ETH; `cummulativeQuoteQty` = 0.05 BTC.
+2. **Step 2: Selling ETH for BTC**:
+   - **`ETHBTC`** pair:bSell the 0.1 ETH to receive BTC.
+    - **Quantity Calculation**: `executedQty` = 0.1 ETH; `cummulativeQuoteQty` = 0.05 BTC.
 
 3. **Step 3: Buying QTUM with ETH**:
    - **`QTUMETH`** pair: Buy QTUM using 0.1 ETH.
@@ -184,6 +229,8 @@ When working with Binance's API for trading, it's crucial to understand the diff
 - **For Sell Orders**: Use `cummulativeQuoteQty` to determine the amount of the quote currency received (e.g., BTC in `ETHBTC`).
 
 Understanding when to use `executedQty` vs `cummulativeQuoteQty` is essential for correctly tracking the assets you are trading, especially in strategies involving continuous buying and selling of cryptocurrency pairs.
+
+---
 
 ## How to Contribute
 
@@ -247,9 +294,13 @@ We welcome contributions from the community! Here’s how you can get started:
    git merge upstream/main
    ```
 
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
 ### Thank You for Contributing!
 Your contributions are greatly appreciated, and we look forward to collaborating with you on this project!
-
-```
-
-This README now includes a detailed guide on how to contribute to your project. It covers forking, cloning, branching, making changes, pushing, and creating pull requests, as well as keeping the fork updated.
