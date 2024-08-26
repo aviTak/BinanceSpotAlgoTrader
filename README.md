@@ -20,7 +20,7 @@ Follow these steps to manage and monitor the HFT system:
    ```bash
    npm run start:prod
    ```
-3. **Stop the Stage Environment**:
+3. **Stop the Application**:
    ```bash
    npm run stop
    ```
@@ -32,7 +32,7 @@ Follow these steps to manage and monitor the HFT system:
    ```bash
    npm run logs:error
    ```
-6. **Delete a Running Process**:
+6. **Delete all Running Processes**:
    ```bash
    npm run delete
    ```
@@ -40,7 +40,7 @@ Follow these steps to manage and monitor the HFT system:
    ```bash
    npm run status
    ```
-8. **Clean Log and CSV Files (Mac/Linux)**:
+8. **Clean Log and CSV Files**:
    ```bash
    npm run clean
    ```
