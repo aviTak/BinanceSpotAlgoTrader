@@ -32,15 +32,19 @@ Follow these steps to manage and monitor the HFT system:
    ```bash
    npm run logs:error
    ```
-6. **Delete all Running Processes**:
+6. **Restart all Running Processes**:
+   ```bash
+   npm run restart
+   ```
+7. **Delete all Running Processes**:
    ```bash
    npm run delete
    ```
-7. **Check the Status of Processes**:
+8. **Check the Status of Processes**:
    ```bash
    npm run status
    ```
-8. **Clean Log and CSV Files**:
+9. **Clean Log and CSV Files**:
    ```bash
    npm run clean
    ```
