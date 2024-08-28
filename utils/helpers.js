@@ -7,9 +7,6 @@ function getCapital(quantity, price) {
     quantity = parseFloat(quantity);
     price = parseFloat(price);
 
-    /* Not required - Binance is handling it */
-    // quantity -= quantity * TRANSACTION_FEE;
-
     quantity = quantity / price;
     return quantity.toString();
 }
@@ -45,7 +42,7 @@ function updateAllPrices(transactionDetail, {
     if (!marketPrices && !bidAskPrices) {
         return transactionDetail;
     }
-    
+
     const updatedDetail = JSON.parse(JSON.stringify(transactionDetail)); // Copy to preserve original
 
     updatedDetail.transactions = updatedDetail.transactions.map(transaction => {

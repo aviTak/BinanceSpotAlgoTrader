@@ -1,35 +1,56 @@
 const { executeOrder, checkOrderStatus, cancelOrder, fetchBidAskPrices } = require("../api/trading");
-const { ORDER_STATUS, TYPE, TIME_IN_FORCE, SIDE } = require("../config/constants");
-const { getOrderInfo, updateTransactionDetail, handleSubProcessError, updateAllPrices } = require("../utils/helpers");
+const { ORDER_STATUS, TYPE, TIME_IN_FORCE, SIDE, SYMBOLS, PRICE_TYPE } = require("../config/constants");
+const { getOrderInfo, updateTransactionDetail, handleSubProcessError, updateAllPrices, mapPriceResponseToOrder } = require("../utils/helpers");
 const logger = require("../utils/logger");
 const transaction4 = require("./transaction4");
 
 const FUNCTION_INDEX = 2,
-    ITERATION_TIME = 1000, // Time in ms
+    ITERATION_TIME = 3000, // Time in ms
     DELAY_STATUS_CHECK = 0;
 
 async function transaction3(
     transactionDetail,
     quantity,
-    isFirstAttempt = true
+    shouldPlaceOrder = true,
+    lastLimitOrderPrice
 ) {
-    let updatedTransactionDetail = transactionDetail,
-        orderInfo;
+    const bidAskPrices = await fetchBidAskPrices(),
+        calculatedPrice = parseFloat(transactionDetail.transactions[1].executedPrice) / parseFloat(transactionDetail.transactions[0].executedPrice),
+        symbolArray = Object.keys(SYMBOLS),
+        askArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.ASK_PRICE),
+        formula = (askArray[2] - calculatedPrice) / calculatedPrice,
+        condition = 0.105 / 122;
 
-    if (isFirstAttempt) {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} first attempt`); // Bid/ask price
-        orderInfo = getOrderInfo(transactionDetail, FUNCTION_INDEX);
-    } else {
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1} consecutive attempt`);
-        const bidAskPrices = await fetchBidAskPrices();
+    logger.info(`formula = ${formula}; calculatedPrice = ${calculatedPrice}; condition = ${condition}`);
 
-        updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices });
-        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
+    if (!shouldPlaceOrder) {
+        if (askArray[2] <= lastLimitOrderPrice) {
+            logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Consecutive attempt; Won't cancel order`);
+            return checkOrderStatusInLoop(transactionDetail, quantity, performance.now(), lastLimitOrderPrice);
+        } else {
+            logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Consecutive attempt; Canceling and placing new order`);
+            return cancelOpenOrder(transactionDetail, quantity);
+        }
+    }
+
+    const updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices }),
         orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX);
+
+    if (formula >= condition) {
+        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions are met; Progressing with bid/ask price`);
+    } else {
+        logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions not met; Yet Progressing`);
+
+        if (askArray[2] <= calculatedPrice) {
+            orderInfo["price"] = calculatedPrice; // At calculated price
+            logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Selecting calculated price`);
+        } else {
+            logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Selecting bid/ask price`);
+        }
     }
 
     try {
-        logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
+        logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ask/buy/calculated price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
 
         const executionResponse = await executeOrder({
                 ...orderInfo,
@@ -55,7 +76,7 @@ async function transaction3(
             return transaction4(newTransactionDetail, passQty);
         } else {
             await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
-            return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now()); // Start timer
+            return checkOrderStatusInLoop(newTransactionDetail, quantity, performance.now(), orderInfo.price); // Start timer
         }
     } catch(error) {
         handleSubProcessError(error, updatedTransactionDetail, FUNCTION_INDEX, quantity);
@@ -89,7 +110,7 @@ async function checkAndProcessOrder(transactionDetail, error) {
     }
 }
 
-async function cancelOpenOrder(transactionDetail, quantity) {
+async function cancelOpenOrder(transactionDetail, quantity, shouldPlaceOrder) {
     try {
         const cancelResponse = await cancelOrder({
                 symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
@@ -124,11 +145,11 @@ async function cancelOpenOrder(transactionDetail, quantity) {
 
                  // Run both transactions in parallel and return their results
                 return Promise.allSettled([
-                    transaction3(newTransactionDetail, remainingAssetQty, false).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
+                    transaction3(newTransactionDetail, remainingAssetQty, true).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
                     transaction4(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
                 ]);
             } else { // Nothing got filled
-                return transaction3(newTransactionDetail, quantity, false);
+                return transaction3(newTransactionDetail, quantity, true);
             }
         } else {
             logger.info(`${transactionDetail.processId} - Order failed to cancel (based on status) at function ${FUNCTION_INDEX + 1}: No open orders`);
@@ -142,7 +163,7 @@ async function cancelOpenOrder(transactionDetail, quantity) {
     }
 }
 
-async function checkOrderStatusInLoop(transactionDetail, quantity, start) {
+async function checkOrderStatusInLoop(transactionDetail, quantity, start, lastLimitOrderPrice) {
     const statusResponse = await checkOrderStatus({
             symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
             orderId: transactionDetail.transactions[FUNCTION_INDEX].orderId
@@ -170,11 +191,11 @@ async function checkOrderStatusInLoop(transactionDetail, quantity, start) {
         if (end - start < ITERATION_TIME) { // Time is remaining
             logger.info(`${transactionDetail.processId} - Re-checking order status at function ${FUNCTION_INDEX + 1}`);
             await new Promise(resolve => setTimeout(resolve, DELAY_STATUS_CHECK)); // Wait and then check status
-            return checkOrderStatusInLoop(newTransactionDetail, quantity, start);
+            return checkOrderStatusInLoop(newTransactionDetail, quantity, start, lastLimitOrderPrice);
         }
 
-        // No time is remaining, cancel the current order and make a reattempt (if remaining) when the order gets canceled
-        return cancelOpenOrder(newTransactionDetail, quantity);
+        // No time is remaining; Do not cancel just make a reattempt
+        return transaction3(newTransactionDetail, quantity, false, lastLimitOrderPrice);
     }
 }
 
