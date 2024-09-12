@@ -6,7 +6,8 @@ const transaction2 = require("./transaction2");
 
 const FUNCTION_INDEX = 0,
     ITERATION_TIME = 2000, // Time in ms
-    DELAY_STATUS_CHECK = 0;
+    DELAY_STATUS_CHECK = 0,
+    FEE_PERCENTAGE_DOGEBTC = 0.001; // 0.1% for DOGE/BTC
 
 async function transaction1(
     transactionDetail,
@@ -33,7 +34,8 @@ async function transaction1(
         marketArray = mapPriceResponseToOrder(symbolArray, marketPrices, PRICE_TYPE.MARKET_PRICE);
         /* User-defined formulas */
         formula1 = (bidArray[2] / marketArray[1]) / askArray[0] - 1;
-        formula2 = marketArray[1] * (bidArray[0] / askArray[2]) - 1;
+        formula2 = marketArray[1] * (bidArray[0] / askArray[2]) - (1 + FEE_PERCENTAGE_DOGEBTC); // Adjust for DOGE/BTC fee
+        liquidityFactor = Math.abs(bidArray[0] - askArray[2]) / marketArray[1],
         conditon = 0.11 / 122;
 
     logger.info(`formula1 = ${formula1}; formula2 = ${formula2}; condition = ${conditon}`);
@@ -64,11 +66,11 @@ async function transaction1(
     logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
 
     try {
-        logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
+        logger.info(`${transactionDetail.processId} - Placing market order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
 
         const executionResponse = await executeOrder({
                 ...orderInfo,
-                type: TYPE.LIMIT,
+                type: TYPE.MARKET,
                 timeInForce: TIME_IN_FORCE.GTC,
                 quantity: quantity
             }),
@@ -83,7 +85,9 @@ async function transaction1(
 
         logger.info(`${transactionDetail.processId} - Execution response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(executionResponse, null, 2)})}`);
 
-        if (executionResponse.status === ORDER_STATUS.FILLED) {
+        if (executionResponse.status === ORDER_STATUS.FILLED ||
+            executionResponse.status === ORDER_STATUS.EXPIRED
+        ) {
             logger.info(`${transactionDetail.processId} - Order ${executionResponse.status} at function ${FUNCTION_INDEX + 1}`);
             const passQty = executionResponse.side === SIDE.BUY? executionResponse.executedQty : executionResponse.cummulativeQuoteQty;
 
@@ -157,7 +161,7 @@ async function cancelOpenOrder(transactionDetail, quantity, attempts) {
 
                 const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
 
-                 // Run both transactions in parallel and return their results
+                // Run both transactions in parallel and return their results
                 return Promise.allSettled([
                     transaction1(newTransactionDetail, remainingAssetQty, attempts - 1).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
                     transaction2(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
