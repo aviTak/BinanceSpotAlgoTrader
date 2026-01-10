@@ -106,7 +106,8 @@ async function cancelOpenOrder(transactionDetail, quantity) {
 
         logger.info(`${transactionDetail.processId} - Cancel response from function ${FUNCTION_INDEX + 1}: ${JSON.stringify(cancelResponse, null, 2)})}`);
 
-        if (cancelResponse.status === ORDER_STATUS.CANCELED) { // Partial or nothing case
+        if (cancelResponse.status === ORDER_STATUS.CANCELED ||
+            cancelResponse.status === ORDER_STATUS.EXPIRED) { // Partial or nothing case
             logger.info(`${transactionDetail.processId} - Order successfully canceled at function ${FUNCTION_INDEX + 1}`);
 
             if (parseFloat(cancelResponse.executedQty)) { // Partial case

@@ -12,7 +12,8 @@
     "logs": "pm2 logs",
     "logs:error": "pm2 logs --err",
     "status": "pm2 status",
-    "clean": "rm -rf csv-data log-files"
+    "clean": "rm -rf csv-data log-files",
+    "start:test": "clear && rm -rf csv-data log-files && pm2 start ecosystem.config.js --env stage && pm2 logs"
   },
   "author": "Avi Takiyar",
   "license": "ISC",

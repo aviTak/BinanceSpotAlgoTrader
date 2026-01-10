@@ -8,7 +8,8 @@ const reverseTransaction1 = require("./reverseTransaction1");
 const FUNCTION_INDEX = 1,
     ITERATION_TIME_MARKET = 1000, // Time in ms
     ITERATION_TIME_BID_ASK = 1000,
-    DELAY_STATUS_CHECK = 0;
+    DELAY_STATUS_CHECK = 0,
+    FEE_PERCENTAGE_DOGEBTC = 0.001; // 0.1% fee for DOGE/BTC
 
 async function transaction2(
     transactionDetail,
@@ -28,42 +29,26 @@ async function transaction2(
 
     logger.info(`${transactionDetail.processId} - Attempts remaining - ${attempts} at function ${FUNCTION_INDEX + 1}`);
 
-    const [ marketPrices, bidAskPrices ] = await Promise.all([
-            fetchMarketPrices(),
-            fetchBidAskPrices()
-        ]),
+    const bidAskPrices = await fetchBidAskPrices(),
         symbolArray = Object.keys(SYMBOLS),
         bidArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.BID_PRICE),
         askArray = mapPriceResponseToOrder(symbolArray, bidAskPrices, PRICE_TYPE.ASK_PRICE),
-        marketArray = mapPriceResponseToOrder(symbolArray, marketPrices, PRICE_TYPE.MARKET_PRICE),
         /* User-defined formulas */
-        formula1 =bidArray[2]/ parseFloat(transactionDetail.transactions[0].executedPrice) /parseFloat(transactionDetail.transactions[1].marketPrice)-1,
-        formula2 = bidArray[0]*parseFloat(transactionDetail.transactions[1].marketPrice)/parseFloat(transactionDetail.transactions[0].executedPrice) -1,
-        formula3=bidArray[2]/parseFloat(transactionDetail.transactions[0].executedPrice)/bidArray[1]-1,
-        formula4=bidArray[0]*askArray[1]/parseFloat(transactionDetail.transactions[0].executedPrice)-1,
-        formula5=parseFloat(0.1/122),
+        formula1 = (bidArray[2] / parseFloat(transactionDetail.transactions[0].executedPrice)) / parseFloat(transactionDetail.transactions[1].marketPrice) - 1; // No fee for FDUSD pairs
+        formula2 = bidArray[0] * (parseFloat(transactionDetail.transactions[1].marketPrice) / parseFloat(transactionDetail.transactions[0].executedPrice)) - (1 + FEE_PERCENTAGE_DOGEBTC); // Fee for DOGE/BTC
+        formula3 = (bidArray[2] / parseFloat(transactionDetail.transactions[0].executedPrice)) / bidArray[1] - 1; // No fee for FDUSD pairs
+        formula4 = bidArray[0] * (askArray[1] / parseFloat(transactionDetail.transactions[0].executedPrice)) - (1 + FEE_PERCENTAGE_DOGEBTC); // Fee for DOGE/BTC
+        formula5 = 0.1 / 122,
+        liquidityFactor = Math.abs(bidArray[0] - askArray[1]) / transactionDetail.transactions[0].executedPrice, // Liquidity check
         side = transactionDetail.transactions[1].side,
         condition = isMarketPrice
-            ? (side === SIDE.BUY ? formula1 >=formula5: formula2>=formula5)
-            : (side === SIDE.BUY ? formula3 >=formula5: formula4>=formula5);
+            ? (side === SIDE.BUY ? formula1 >= formula5: formula2 >= formula5)
+            : (side === SIDE.BUY ? formula3 >= formula5: formula4 >= formula5);
 
-        logger.info(`formula1 = ${formula1}`);
-        logger.info(`formula2 = ${formula2}`);
-        logger.info(`formula3 = ${formula3}`);
-        logger.info(`formula4 = ${formula4}`);
-        logger.info(`formula5 = ${formula5}`);
-        logger.info(`c3 = ${parseFloat(transactionDetail.transactions[1].marketPrice)}`);
-        logger.info(`c2 = ${bidArray[2]}`);
-        logger.info(`c1 = ${parseFloat(transactionDetail.transactions[0].executedPrice)}`);
-
-        logger.info(`c3 = ${parseFloat(transactionDetail.transactions[1].marketPrice)}`);
-        logger.info(`c2 =${parseFloat(transactionDetail.transactions[0].executedPrice)}`) ;
-        logger.info(`c1 = ${bidArray[0]}`);
-        logger.info(`c1 = ${bidArray[1]}`);
+    logger.info(`formula1 = ${formula1}; formula2 = ${formula2}; formula3 = ${formula3}; formula4 = ${formula4}; formula5 = ${formula5}; condition = ${condition}`);
 
     // Check condition
-    if (condition
-    ) {
+    if (condition && liquidityFactor > 0.01) {
         /* Code will only run for this condition block */
 
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions are met; Progressing`);
@@ -115,7 +100,10 @@ async function transaction2(
         }
     } else {
         logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Conditions are not met; Reversing order`);
-        return reverseTransaction1(transactionDetail, quantity, TRANSACTION_STATUS.REVERSED_CONDITION); // Reverse order
+        if (shouldPlaceOrder) {
+            return reverseTransaction1(transactionDetail, quantity, TRANSACTION_STATUS.REVERSED_CONDITION); // Reverse order
+        }
+        return cancelOpenOrder(transactionDetail, quantity, false);
     }
 }
 
@@ -146,7 +134,7 @@ async function checkAndProcessOrder(transactionDetail, error) {
     }
 }
 
-async function cancelOpenOrder(transactionDetail, quantity, isMarketPrice) {
+async function cancelOpenOrder(transactionDetail, quantity, shouldReattempt) {
     try {
         const cancelResponse = await cancelOrder({
                 symbol: transactionDetail.transactions[FUNCTION_INDEX].symbol,
@@ -179,7 +167,7 @@ async function cancelOpenOrder(transactionDetail, quantity, isMarketPrice) {
 
                 const remainingAssetQty = (parseFloat(quantity) - parseFloat(repeatQty)).toString();
 
-                if (isMarketPrice) {
+                if (shouldReattempt) {
                     // Run both transactions in parallel and return their results
                     return Promise.allSettled([
                         transaction2(newTransactionDetail, remainingAssetQty, TRANSACTION_ATTEMPTS.TRANSACTION_2.BID_ASK, false).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
@@ -188,11 +176,11 @@ async function cancelOpenOrder(transactionDetail, quantity, isMarketPrice) {
                 }
 
                 return Promise.allSettled([
-                    reverseTransaction1(newTransactionDetail, quantity, TRANSACTION_STATUS.REVERSED_ATTEMPT).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
+                    reverseTransaction1(newTransactionDetail, remainingAssetQty, TRANSACTION_STATUS.REVERSED_ATTEMPT).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, remainingAssetQty)),
                     transaction3(newTransactionDetail, passQty).catch(error => handleSubProcessError(error, newTransactionDetail, FUNCTION_INDEX, passQty))
                 ]);
             } else { // Nothing got filled
-                if (isMarketPrice) { // Re-attempt with bid/ask price now
+                if (shouldReattempt) { // Re-attempt with bid/ask price now
                     return transaction2(newTransactionDetail, quantity, TRANSACTION_ATTEMPTS.TRANSACTION_2.BID_ASK, false);
                 }
 

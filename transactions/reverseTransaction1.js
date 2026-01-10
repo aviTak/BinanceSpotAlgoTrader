@@ -5,7 +5,8 @@ const logger = require("../utils/logger");
 
 const FUNCTION_INDEX = 4,
     ITERATION_TIME = 1000, // Time in ms
-    DELAY_STATUS_CHECK = 0;
+    DELAY_STATUS_CHECK = 0,
+    FEE_PERCENTAGE_BTCFDUSD = 0.001; // Adjust for BTC/FDUSD fee
 
 async function reverseTransaction1(
     transactionDetail,
@@ -14,16 +15,25 @@ async function reverseTransaction1(
 ) {
     const bidAskPrices = await fetchBidAskPrices(),
         updatedTransactionDetail = updateAllPrices(transactionDetail, { bidAskPrices }),
-        orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX);
+        orderInfo = getOrderInfo(updatedTransactionDetail, FUNCTION_INDEX),
+        liquidityFactor = Math.abs(bidAskPrices[0].bidPrice - bidAskPrices[0].askPrice) / bidAskPrices[0].bidPrice,
+        condition = liquidityFactor > 0.01;
 
     logger.info(`${transactionDetail.processId} - Function ${FUNCTION_INDEX + 1}: Price updated transaction detail - ${JSON.stringify(updatedTransactionDetail)}`);
 
+    if (!condition) {
+        logger.info(`${transactionDetail.processId} - Low liquidity detected, placing market order`);
+        // Adjust for market order based on liquidity
+        orderInfo["type"] = TYPE.MARKET;
+    } else {
+        orderInfo["type"] = TYPE.LIMIT;
+    }
+
     try {
-        logger.info(`${transactionDetail.processId} - Placing limit order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
+        logger.info(`${transactionDetail.processId} - Placing ${orderInfo.type} order from function ${FUNCTION_INDEX + 1} at ask/buy price with order info - ${JSON.stringify(orderInfo, null, 2)}`);
 
         const executionResponse = await executeOrder({
                 ...orderInfo,
-                type: TYPE.LIMIT,
                 timeInForce: TIME_IN_FORCE.GTC,
                 quantity: quantity
             }),
